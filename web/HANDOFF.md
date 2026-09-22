@@ -1,4 +1,4 @@
-# WeDelivery Frontend — Handoff Doc (for the 4 teammates)
+# Dispatch & Delivery — Handoff Doc (for the 4 teammates)
 
 > The foundation (scaffolding / design system / API layer / state layer / routing /
 > contract / mock mode) is complete and `npm run build` passes.

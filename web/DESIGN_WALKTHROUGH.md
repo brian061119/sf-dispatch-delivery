@@ -1,4 +1,4 @@
-# WeDelivery Frontend — Design Walkthrough (Yiting Qi)
+# Dispatch & Delivery — Design Walkthrough (Yiting Qi)
 
 > Purpose: explain to the instructor and teammates **how each layer is designed and why**.
 > Conclusions first, details by layer; when challenged, jump to the FAQ at the end.

@@ -1,4 +1,4 @@
-# WeDelivery Web — FlagCamp frontend scaffolding
+# Dispatch & Delivery — FlagCamp frontend scaffolding
 
 **React 19 + JavaScript + Vite + antd v6 + React-Leaflet + Zustand + axios**
 
@@ -92,6 +92,13 @@ Change it with `VITE_API_PROXY_TARGET=http://<backend-host:port> npm run dev`.
 
 All antd colors/radii live in `src/theme.js`. Change `colorPrimary` once to re-skin the
 whole app (the wireframe's black buttons can be tuned here).
+
+## Renaming the product
+
+The UI brand name lives in ONE constant: `src/lib/brand.js` → `BRAND_NAME`
+(currently `Dispatch & Delivery`). The header logo and browser tab title both read it.
+On a real rename also update the doc titles and `index.html`'s static fallback; the npm
+`package.json` name is an internal identifier and does not need to change.
 
 ## How to use the stores
 

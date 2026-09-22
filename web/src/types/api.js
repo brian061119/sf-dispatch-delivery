@@ -1,5 +1,5 @@
 // ============================================================================
-// WeDelivery — frontend <-> backend contract
+// Dispatch & Delivery — frontend <-> backend contract
 //
 // ⚠️ URL + method follow api-contract.md (2026-09-21 confirmed version) in the
 //    team repo. This file is its frontend mirror: field shapes are expressed as

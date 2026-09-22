@@ -67,7 +67,7 @@ export async function logout() {
 
 export async function getMe() {
     await latency();
-    return { id: 'u1', username: 'demo', email: 'demo@wedelivery.dev' };
+    return { id: 'u1', username: 'demo', email: 'demo@dispatchdelivery.dev' };
 }
 
 // ---- recommendations + orders (Zihang) ------------------------------------------

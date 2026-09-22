@@ -1,5 +1,6 @@
 import { Button, Layout, Space, Typography } from 'antd';
 import { Link, useNavigate } from 'react-router-dom';
+import { BRAND_NAME } from '../lib/brand';
 import { useAuth } from '../store/auth';
 // Top bar shown once logged in (matches the head in the wireframes:
 // logo + Dashboard + Orders + [+ Create a new delivery] + user).
@@ -15,7 +16,7 @@ export function AppHeader() {
             paddingInline: 24,
         }}>
       <Typography.Title level={4} style={{ margin: 0 }}>
-        WeDelivery
+        {BRAND_NAME}
       </Typography.Title>
       <Space size="large">
         <Link to="/dashboard">Dashboard</Link>
