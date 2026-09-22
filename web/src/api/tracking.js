@@ -1,8 +1,10 @@
 import { http } from '../lib/http';
+import * as mock from './mock';
 // Owner: Yuning Zhang (追踪). Contract: GET /api/orders/:orderId/tracking.
 // The Tracking page polls this every 5s. (Contract also lists an optional
 // WS /api/ws/orders/:orderId as a stretch feature — P0/P1 uses polling only.)
 export async function getTracking(orderId) {
+    if (import.meta.env.VITE_MOCK === '1') return mock.getTracking(orderId);
     const { data } = await http.get(`/orders/${orderId}/tracking`);
     return data;
 }

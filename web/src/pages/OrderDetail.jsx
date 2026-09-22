@@ -20,7 +20,7 @@ export default function OrderDetailPage() {
     // clickable until then. (Open question for the team: should "arrived, awaiting
     // receipt" be its own state? Tracked in 交接文档.md.)
     const signed = order.status === 'DELIVERED';
-    return (<Space direction="vertical" style={{ width: '100%' }} size={16}>
+    return (<Space orientation="vertical" style={{ width: '100%' }} size={16}>
       <Card title={<>
             Order #{order.orderId} <StatusBadge status={order.status}/>
           </>} extra={<Link to={`/tracking/${order.orderId}`}>Live tracking →</Link>}>

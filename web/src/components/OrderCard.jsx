@@ -6,7 +6,7 @@ import { StatusBadge } from './StatusBadge';
 // packageDescription / estimatedCost (no vehicleType in the list payload).
 export function OrderCard({ order, mini }) {
     return (<Card size="small" style={{ marginBottom: 12 }}>
-      <Space direction="vertical" style={{ width: '100%' }}>
+      <Space orientation="vertical" style={{ width: '100%' }}>
         <Space style={{ justifyContent: 'space-between', width: '100%' }}>
           <Typography.Text strong>
             #{order.orderId} · {order.packageDescription}

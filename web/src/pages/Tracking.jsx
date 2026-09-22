@@ -22,7 +22,7 @@ export default function Tracking() {
     // TODO(Yuning): if the backend later exposes a route array, pass it to MapView.
     const vehicle = track.currentLat != null ? { lat: track.currentLat, lng: track.currentLng } : undefined;
     return (
-        <Space direction="vertical" style={{ width: '100%' }} size={16}>
+        <Space orientation="vertical" style={{ width: '100%' }} size={16}>
             <Card
                 title={`Order #${track.orderId} · ${track.vehicleType ?? ''}`}
                 extra={track.estimatedArrival ? `ETA ${new Date(track.estimatedArrival).toLocaleTimeString()}` : undefined}

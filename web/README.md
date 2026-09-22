@@ -14,9 +14,19 @@
 
 ```bash
 npm install        # 首次
-npm run dev        # http://localhost:3000
+npm run dev        # http://localhost:3000（需要后端在 :8080）
 npm run build      # 生产构建
 ```
+
+**后端没好也能看效果（mock 模式）**：
+
+```bash
+VITE_MOCK=1 npm run dev        # Git Bash / macOS / Linux
+$env:VITE_MOCK="1"; npm run dev   # Windows PowerShell
+```
+
+mock 模式由 `src/api/mock.js` 提供契约形状的假数据（种子订单、候选方案、会漂移的快递员位置），
+任意账号密码即可登录，下单/签收/评价全流程可点。刷新页面重置。
 
 后端默认代理到 `http://localhost:8080`（见 `vite.config.js`）。
 改后端地址：`VITE_API_PROXY_TARGET=http://<后端host:port> npm run dev`。
