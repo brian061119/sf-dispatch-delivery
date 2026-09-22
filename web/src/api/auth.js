@@ -1,6 +1,6 @@
 import { http } from '../lib/http';
 import * as mock from './mock';
-// Owner: Ziyuan Xu (认证). Paths follow api-contract.md: /api/auth/*.
+// Owner: Ziyuan Xu (auth). Paths follow api-contract.md: /api/auth/*.
 export async function register(body) {
     if (import.meta.env.VITE_MOCK === '1') return mock.register(body);
     const { data } = await http.post('/auth/register', body);

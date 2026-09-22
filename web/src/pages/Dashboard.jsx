@@ -6,7 +6,7 @@ import { OrderCard } from '../components/OrderCard';
 import { useAuth } from '../store/auth';
 import { useOrders } from '../store/orders';
 import { useWizard } from '../store/wizard';
-// Owner: Zihang Cao (订单-获取列表) + AI 卡外壳. Wireframe: UI线框图/03_Dashboard.svg
+// Owner: Zihang Cao (order list) + AI card shell. Wireframe: wireframes/03_Dashboard.svg
 export default function Dashboard() {
     const username = useAuth((s) => s.username);
     const { list, loading, refresh } = useOrders();

@@ -1,6 +1,6 @@
 import { http } from '../lib/http';
 import * as mock from './mock';
-// Owner: Zihang Cao (推荐). Contract: POST /api/recommendations.
+// Owner: Zihang Cao (recommendations). Contract: POST /api/recommendations.
 // Request:  { pickup, dropoff, package, priority }   (see types/api.js)
 // Response: { candidates: Candidate[] } — isFastest/isCheapest computed by backend.
 export async function getRecommendations(body) {

@@ -1,6 +1,6 @@
 import { http } from '../lib/http';
 import * as mock from './mock';
-// ---- Zihang Cao — 订单创建 + 获取列表 ------------------------------------------
+// ---- Zihang Cao — order create + list ------------------------------------------
 // Contract: POST /api/orders (embedded payment: pay + create in ONE call, 201).
 export async function createOrder(body) {
     if (import.meta.env.VITE_MOCK === '1') return mock.createOrder(body);
@@ -13,7 +13,7 @@ export async function getOrders() {
     const { data } = await http.get('/orders');
     return data;
 }
-// ---- Y — 详情 + 签收 + 评价 ------------------------------------------------------
+// ---- Y — detail + confirm receipt + review --------------------------------------
 // Contract: GET /api/orders/:orderId (response body TBD — page renders defensively).
 export async function getOrder(orderId) {
     if (import.meta.env.VITE_MOCK === '1') return mock.getOrder(orderId);
@@ -33,4 +33,4 @@ export async function submitReview(orderId, body) {
     return data;
 }
 // NOTE: the contract has NO cancel endpoint. The Tracking page's cancel button is
-// commented out with a TODO until the backend adds one (tracked in 交接文档.md).
+// commented out with a TODO until the backend adds one (tracked in HANDOFF.md).

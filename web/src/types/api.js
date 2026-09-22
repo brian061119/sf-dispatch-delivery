@@ -1,77 +1,88 @@
 // ============================================================================
-// WeDelivery — 前后端契约 (frontend <-> backend contract)
+// WeDelivery — frontend <-> backend contract
 //
-// ⚠️ URL + method 以团队共享仓库里的 api-contract.md（2026-09-21 确认版）为准。
-//    本文件是它的前端镜像：字段形状用 JSDoc @typedef 表达，TBD 部分原样标注，
-//    不要在代码里发明契约里还没有的字段。
+// ⚠️ URL + method follow api-contract.md (2026-09-21 confirmed version) in the
+//    team repo. This file is its frontend mirror: field shapes are expressed as
+//    JSDoc @typedef, TBD parts are marked as-is — do NOT invent fields that are
+//    not in the contract yet.
 //
-// 在别的文件里引用：  /** @type {import('../types/api.js').OrderDetail} */
+// Reference from other files:  /** @type {import('../types/api.js').OrderDetail} */
 // ============================================================================
 
-// ---- 枚举 --------------------------------------------------------------------
+// ---- Enums -------------------------------------------------------------------
 
-/** 配送载具。@typedef {'ROBOT'|'DRONE'} VehicleType */
+/** Delivery vehicle. @typedef {'ROBOT'|'DRONE'} VehicleType */
 
-/** 订单状态机（4 态，契约版）。PENDING -> IN_TRANSIT -> DELIVERED；前置态可 -> CANCELLED。
- * 注意：confirm-receipt 会把状态置为 DELIVERED —— "DELIVERED 是已送达还是已签收"
- * 已在交接文档列为待确认项。
+/** Order state machine (4 states, per contract). PENDING -> IN_TRANSIT -> DELIVERED;
+ * any earlier state may -> CANCELLED.
+ * Note: confirm-receipt flips status to DELIVERED — whether "DELIVERED means
+ * arrived vs. signed for" is tracked as an open question in HANDOFF.md.
  * @typedef {'PENDING'|'IN_TRANSIT'|'DELIVERED'|'CANCELLED'} OrderStatus */
 
-/** 配送优先级。@typedef {'STANDARD'|'EXPRESS'} Priority */
+/** Delivery priority. @typedef {'STANDARD'|'EXPRESS'} Priority */
 
-// ---- 基础结构（契约版）---------------------------------------------------------
+// ---- Base shapes (contract) ----------------------------------------------------
 
 /**
- * 地址。addressId 非空时后端以它为准（保存的地址）；否则用明细字段。
- * city 固定 San Francisco（课程场景）。lat/lng 可空（地图选点落地前为 null）。
+ * Address. When addressId is non-null the backend trusts it (a saved address);
+ * otherwise the detail fields are used.
+ * city is fixed to San Francisco (course scenario). lat/lng are nullable
+ * (null until the map picker lands).
  * @typedef {{ addressId: string|null, line1: string, city: string, zip: string, lat: number|null, lng: number|null }} ContractAddress
  */
 
 /**
- * 包裹。单位契约：重量 kg、尺寸 cm。
+ * Package. Unit contract: weight in kg, dimensions in cm.
  * @typedef {{ description: string, weightKg: number, lengthCm: number|null, widthCm: number|null, heightCm: number|null, fragile: boolean }} ContractPackage
  */
 
-// ---- Auth（Ziyuan Xu）----------------------------------------------------------
+// ---- Auth (Ziyuan Xu) ----------------------------------------------------------
 
-/** POST /api/auth/login 请求体。@typedef {{ username: string, password: string }} LoginRequest */
+/** POST /api/auth/login request body. @typedef {{ username: string, password: string }} LoginRequest */
 
-/** 登录响应里的用户对象。@typedef {{ id: string, username: string, email: string }} UserInfo */
+/** User object inside the login response. @typedef {{ id: string, username: string, email: string }} UserInfo */
 
-/** POST /api/auth/login 响应（200）。@typedef {{ token: string, user: UserInfo }} AuthResponse */
+/** POST /api/auth/login response (200). @typedef {{ token: string, user: UserInfo }} AuthResponse */
 
-/** POST /api/auth/register 请求体。
- * ⚠️ 契约 TBD：body 未最终定义，先按 {username,password,email} 发，密码策略待团队确认。
+/** POST /api/auth/register request body.
+ * ⚠️ Contract TBD: body not finalized; we send {username,password,email} for now,
+ * password policy to be confirmed with the team.
  * @typedef {{ username: string, password: string, email?: string }} RegisterRequest */
 
-// ---- Recommendations（Zihang Cao — 推荐）---------------------------------------
+// ---- Recommendations (Zihang Cao) ----------------------------------------------
 
-/** POST /api/recommendations 请求体。
+/** POST /api/recommendations request body.
  * @typedef {{ pickup: ContractAddress, dropoff: ContractAddress, package: ContractPackage, priority: Priority }} RecommendationsRequest */
 
-/** 一个候选配送方案。isFastest/isCheapest 由后端 RecommendationService 算好，前端只展示。
- * availableUnits=0 的前端禁用选择。
+/** One candidate delivery option. isFastest/isCheapest are computed by the
+ * backend RecommendationService; the frontend only displays them.
+ * Candidates with availableUnits=0 are disabled in the UI.
  * @typedef {{ candidateId: string, stationId: string, stationName: string, vehicleType: VehicleType, estimatedTimeMinutes: number, estimatedCost: number, availableUnits: number, score: number, isFastest: boolean, isCheapest: boolean }} Candidate */
 
-/** POST /api/recommendations 响应（200）。@typedef {{ candidates: Candidate[] }} RecommendationsResponse */
+/** POST /api/recommendations response (200). @typedef {{ candidates: Candidate[] }} RecommendationsResponse */
 
-// ---- Orders（Zihang 创建+列表 / Y 详情+签收+评价）-------------------------------
+// ---- Orders (Zihang: create + list / Y: detail + receipt + review) -------------
 
-/** POST /api/orders 请求体（内嵌支付，一次调用完成支付+创建，无回调页）。
- * paymentMethodId：真实实现应是 Stripe Elements 之类的 token；课程 mock 直接发占位串。
+/** POST /api/orders request body (embedded payment: pay + create in ONE call,
+ * no payment callback page).
+ * paymentMethodId: a real implementation would be a Stripe Elements-style token;
+ * the course mock just sends a placeholder string.
  * @typedef {{ candidateId: string, pickup: ContractAddress, dropoff: ContractAddress, package: ContractPackage, priority: Priority, paymentMethodId: string }} CreateOrderRequest */
 
-/** POST /api/orders 响应（201）。
- * ⚠️ 契约 TBD：支付失败 vs 订单本身失败的错误形状未定义，前端需要区分来展示文案。
+/** POST /api/orders response (201).
+ * ⚠️ Contract TBD: error shapes for payment failure vs. order failure are not
+ * defined; the frontend needs to distinguish them for messaging.
  * @typedef {{ orderId: string, status: OrderStatus, estimatedTimeMinutes: number, estimatedCost: number }} CreateOrderResponse */
 
-/** GET /api/orders 列表项。@typedef {{ orderId: string, status: OrderStatus, createdAt: string, packageDescription: string, estimatedCost: number }} OrderSummary */
+/** GET /api/orders list item. @typedef {{ orderId: string, status: OrderStatus, createdAt: string, packageDescription: string, estimatedCost: number }} OrderSummary */
 
-/** GET /api/orders 响应（200）。@typedef {{ orders: OrderSummary[] }} OrderListResponse */
+/** GET /api/orders response (200). @typedef {{ orders: OrderSummary[] }} OrderListResponse */
 
-/** GET /api/orders/:orderId 响应。
- * ⚠️ 契约 TBD：只确认是列表项的超集（完整地址/包裹/候选/时间戳），字段未定义。
- * 前端 OrderDetail 页用可选链防御式渲染，契约定了再补全。
+/** GET /api/orders/:orderId response.
+ * ⚠️ Contract TBD: only confirmed to be a superset of the list item (full
+ * address/package/candidate/timestamps); fields undefined.
+ * The OrderDetail page renders defensively with optional chaining until the
+ * contract is finalized.
  * @typedef {Object} OrderDetail
  * @property {string} orderId
  * @property {OrderStatus} status
@@ -84,30 +95,35 @@
  * @property {Candidate} [candidate]
  */
 
-/** PATCH /api/orders/:orderId/confirm-receipt 响应（200）。
+/** PATCH /api/orders/:orderId/confirm-receipt response (200).
  * @typedef {{ orderId: string, status: 'DELIVERED' }} ConfirmReceiptResponse */
 
-/** POST /api/orders/:orderId/review 请求体。damageReported=true 即损坏报备（细节写进 comment）。
+/** POST /api/orders/:orderId/review request body. damageReported=true is the
+ * damage report (details go into comment).
  * @typedef {{ rating: number, comment: string|null, damageReported: boolean }} ReviewRequest */
 
-/** POST /api/orders/:orderId/review 响应（200）。@typedef {{ orderId: string, reviewId: string }} ReviewResponse */
+/** POST /api/orders/:orderId/review response (200). @typedef {{ orderId: string, reviewId: string }} ReviewResponse */
 
-// ---- Tracking（Yuning Zhang）----------------------------------------------------
+// ---- Tracking (Yuning Zhang) ---------------------------------------------------
 
-/** GET /api/orders/:orderId/tracking 响应（200）— 追踪页 5s 轮询的就是它。
- * 契约无历史轨迹数组；如需 route 折线要向 backend 提需求（待确认项）。
+/** GET /api/orders/:orderId/tracking response (200) — this is what the Tracking
+ * page polls every 5s.
+ * The contract has no route-history array; if a route polyline is needed, file a
+ * request with the backend (open item).
  * @typedef {{ orderId: string, status: OrderStatus, vehicleType: VehicleType, currentLat: number, currentLng: number, estimatedArrival: string }} TrackingResponse */
 
-// ---- Stations -------------------------------------------------------------------
+// ---- Stations ------------------------------------------------------------------
 
-/** GET /api/stations 响应项。⚠️ 契约 TBD（等 StationRepository owner 确认）。
+/** GET /api/stations response item. ⚠️ Contract TBD (pending StationRepository owner).
  * @typedef {{ stationId: string, name: string, address?: string, lat?: number, lng?: number }} Station */
 
-// ---- AI 自然语言下单（P1，未入契约）----------------------------------------------
+// ---- AI natural-language ordering (P1, NOT in contract) ------------------------
 
 /**
- * ⚠️ 该端点是前端为 P1 功能提议的，不在 api-contract.md 里，需后端认领后才算数。
- * 解析结果 = 未完成的下单草稿，倒进 wizard 由用户核实（"AI drafts, wizard verifies"）。
+ * ⚠️ This endpoint is proposed by the frontend for the P1 feature; it is NOT in
+ * api-contract.md and only counts once a backend owner claims it.
+ * Parse result = an incomplete order draft, poured into the wizard for the user
+ * to verify ("AI drafts, wizard verifies").
  * @typedef {{ itemName?: string, weight?: number, fragile?: boolean }} AiParseResponse
  */
 

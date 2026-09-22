@@ -2,7 +2,7 @@ import { LockOutlined, UserOutlined } from '@ant-design/icons';
 import { App, Button, Card, Form, Input } from 'antd';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../store/auth';
-// Owner: Ziyuan Xu (认证). Wireframe: UI线框图/01_Login.svg
+// Owner: Ziyuan Xu (auth). Wireframe: wireframes/01_Login.svg
 export default function Login() {
     const login = useAuth((s) => s.login);
     const nav = useNavigate();

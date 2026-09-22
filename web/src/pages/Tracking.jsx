@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 import { getTracking } from '../api/tracking';
 import { MapView } from '../components/MapView';
 import { StatusTimeline } from '../components/StatusTimeline';
-// Owner: Yuning Zhang (追踪). Polls GET /api/orders/:orderId/tracking every 5s
+// Owner: Yuning Zhang (tracking). Polls GET /api/orders/:orderId/tracking every 5s
 // and renders the live map + timeline. (Contract's WS push is a stretch feature;
 // P0/P1 uses polling only.)
 export default function Tracking() {
@@ -29,7 +29,7 @@ export default function Tracking() {
             >
                 <StatusTimeline status={track.status} />
                 {/* TODO(team): the contract has no cancel endpoint — the Cancel button
-                    from the wireframe is parked until the backend adds one. See 交接文档.md. */}
+                    from the wireframe is parked until the backend adds one. See HANDOFF.md. */}
             </Card>
 
             <Card title="Live map" size="small">

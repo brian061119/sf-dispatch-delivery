@@ -7,7 +7,7 @@ import { MapView } from '../components/MapView';
 import { VehicleIcon } from '../components/VehicleIcon';
 import { useOrders } from '../store/orders';
 import { useWizard } from '../store/wizard';
-// Owner: Zihang Cao (推荐 + 订单创建). Frames 04–07 as ONE route with 4 steps.
+// Owner: Zihang Cao (recommendations + order create). Frames 04–07 as ONE route with 4 steps.
 // Contract flow: POST /api/recommendations -> pick a candidate -> POST /api/orders
 // (embedded payment: pay + create in one call, then route to tracking).
 export default function OrderWizard() {

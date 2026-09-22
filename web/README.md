@@ -1,86 +1,90 @@
-# WeDelivery Web — FlagCamp 前端脚手架
+# WeDelivery Web — FlagCamp frontend scaffolding
 
 **React 19 + JavaScript + Vite + antd v6 + React-Leaflet + Zustand + axios**
 
-本仓库是前端 lead（Yiting Qi）的**基建交付**：脚手架 + 设计系统 + `api.js` + 后端对齐 + 路由集成。
-4 位同学在各自页面填业务即可，公共部分已在 `components/`、`api/`、`store/` 备好。
+This repo is the frontend lead's (Yiting Qi) **foundation delivery**: scaffolding + design system + `api.js` + backend alignment + routing integration.
+The other 4 teammates fill in business logic on their own pages; shared pieces are ready in `components/`, `api/`, `store/`.
 
-> 2026-09 从 TypeScript 转为纯 JavaScript（对齐 social-ai 课程栈）。
-> 原来的 `types/api.ts` 接口契约改写为 `src/types/api.js` 里的 **JSDoc @typedef** —— 契约不变，只是表达形式换了。
+> Converted from TypeScript to plain JavaScript in 2026-09 (aligned with the social-ai course stack).
+> The old `types/api.ts` contract is now **JSDoc @typedef** in `src/types/api.js` — same contract, different notation.
 >
-> **API 的 URL + method 以团队仓库根目录 `api-contract.md`（2026-09-21 确认版）为准**，`src/types/api.js` 是它的前端镜像。
+> **API URLs + methods follow `api-contract.md` (2026-09-21 confirmed version) in the team repo root.** `src/types/api.js` is its frontend mirror.
 
-## 快速开始
-
-```bash
-npm install        # 首次
-npm run dev        # http://localhost:3000（需要后端在 :8080）
-npm run build      # 生产构建
-```
-
-**后端没好也能看效果（mock 模式）**：
+## Quick start
 
 ```bash
-VITE_MOCK=1 npm run dev        # Git Bash / macOS / Linux
-$env:VITE_MOCK="1"; npm run dev   # Windows PowerShell
+npm install        # first time
+npm run dev        # http://localhost:3000 (needs the backend on :8080)
+npm run build      # production build
 ```
 
-mock 模式由 `src/api/mock.js` 提供契约形状的假数据（种子订单、候选方案、会漂移的快递员位置），
-任意账号密码即可登录，下单/签收/评价全流程可点。刷新页面重置。
+**No backend yet? Use mock mode:**
 
-后端默认代理到 `http://localhost:8080`（见 `vite.config.js`）。
-改后端地址：`VITE_API_PROXY_TARGET=http://<后端host:port> npm run dev`。
+```bash
+VITE_MOCK=1 npm run dev              # Git Bash / macOS / Linux
+$env:VITE_MOCK="1"; npm run dev      # Windows PowerShell
+```
 
-## 目录
+Mock mode serves contract-shaped fake data from `src/api/mock.js` (seed orders, delivery
+candidates, a courier position that drifts). Any username/password logs you in; the full
+flow (order / confirm receipt / review) is clickable. Refresh resets everything.
 
-| 路径 | 作用 |
+The backend is proxied to `http://localhost:8080` by default (see `vite.config.js`).
+Change it with `VITE_API_PROXY_TARGET=http://<backend-host:port> npm run dev`.
+
+## Directory layout
+
+| Path | Role |
 |---|---|
-| `src/types/api.js` | 全部接口契约（JSDoc @typedef，镜像 api-contract.md）—— 改动需全组+后端同步 |
-| `src/lib/http.js` | axios 实例：baseURL + JWT 拦截器 + 401 跳登录 |
-| `src/lib/auth.js` | token 存取（localStorage） |
-| `src/api/*` | 按契约分组的接口函数（见下表） |
-| `src/store/*` | Zustand：`auth` / `wizard` / `orders` |
-| `src/components/*` | 设计系统公共组件 |
-| `src/pages/*` | 7 个页面，已按 owner 标注 TODO |
+| `src/types/api.js` | Full API contract (JSDoc @typedef, mirrors api-contract.md) — changes must be synced with the whole team + backend |
+| `src/lib/http.js` | axios instance: baseURL + JWT interceptor + 401 → login redirect |
+| `src/lib/auth.js` | token storage (localStorage) |
+| `src/api/*` | API functions grouped by contract area (see table below) |
+| `src/store/*` | Zustand: `auth` / `wizard` / `orders` |
+| `src/components/*` | Design-system shared components |
+| `src/pages/*` | 7 pages, TODOs tagged by owner |
 
-## 分工 ↔ 路由 ↔ 接口
+## Ownership ↔ routes ↔ endpoints
 
-| owner | 页面 / 路由 | 用的接口（全部 `/api` 前缀） | 状态 |
+| Owner | Pages / routes | Endpoints used (all `/api`-prefixed) | Status |
 |---|---|---|---|
-| **Ziyuan Xu** | Login `/login`、Register `/register` | `POST /auth/register`、`POST /auth/login`（+ `logout`/`me`） | 骨架已通 |
-| **Zihang Cao** | Dashboard `/dashboard`、History `/orders`、Wizard `/order/new` | `POST /recommendations`、`POST /orders`、`GET /orders`、`GET /stations` | 骨架已通 |
-| **Y** | OrderDetail `/order/:orderId` | `GET /orders/:id`、`PATCH /orders/:id/confirm-receipt`、`POST /orders/:id/review` | 骨架已通 |
-| **Yuning Zhang** | Tracking `/tracking/:orderId` | `GET /orders/:id/tracking`（5s 轮询） | 骨架已通 |
-| **Yiting Qi** | 基建（本文件全部） | 全部 | ✅ |
+| **Ziyuan Xu** | Login `/login`, Register `/register` | `POST /auth/register`, `POST /auth/login` (+ `logout`/`me`) | Skeleton works |
+| **Zihang Cao** | Dashboard `/dashboard`, History `/orders`, Wizard `/order/new` | `POST /recommendations`, `POST /orders`, `GET /orders`, `GET /stations` | Skeleton works |
+| **Y** | OrderDetail `/order/:orderId` | `GET /orders/:id`, `PATCH /orders/:id/confirm-receipt`, `POST /orders/:id/review` | Skeleton works |
+| **Yuning Zhang** | Tracking `/tracking/:orderId` | `GET /orders/:id/tracking` (5s polling) | Skeleton works |
+| **Yiting Qi** | Foundation (everything above) | All | ✅ |
 
-> **路由↔线框图映射**：线框 04–07（下单四步）合并为单路由 `/order/new` 的内部 4 步；
-> 03 Dashboard / 09 History 共用 `OrderCard`；08 Tracking 与详情页通过 `Live tracking →` 互跳，
-> **不要各做一版订单页**（详情=静态信息+签收+评价，追踪=实时地图+时间线）。
+> **Route ↔ wireframe mapping**: wireframes 04–07 (the 4 order steps) are merged into ONE
+> route `/order/new` with 4 internal steps; 03 Dashboard / 09 History share `OrderCard`;
+> 08 Tracking and the detail page cross-link via `Live tracking →`.
+> **Do NOT build two versions of an order page** (detail = static info + receipt + review;
+> tracking = live map + timeline).
 
-## 后端要对齐的 3 件事
+## 3 things the backend must align on
 
-1. 基础路径 `/api`，返回 JSON，鉴权用 `Authorization: Bearer <token>`。
-2. **新增「签收」接口** `POST /api/orders/{id}/confirm`（原 10 端点没有，为 Y 的签收补的）。
-3. 枚举字符串保持一致：`VehicleType = ROBOT | DRONE`；`OrderStatus = CREATED | ASSIGNED | PICKED_UP | IN_TRANSIT | DELIVERED | CANCELLED`。
+1. Base path `/api`, JSON responses, auth via `Authorization: Bearer <token>`.
+2. Enums stay consistent: `VehicleType = ROBOT | DRONE`; `OrderStatus = PENDING | IN_TRANSIT | DELIVERED | CANCELLED`.
+3. The TBD items in HANDOFF.md §5 (register body, order detail body, stations, ...).
 
-## 公共组件速查
+## Shared components cheat sheet
 
-| 组件 | 用途 |
+| Component | Purpose |
 |---|---|
-| `<AppHeader/>` | 顶栏（logo/Dashboard/Orders/新建/登出），App.jsx 已挂 |
-| `<OrderCard order mini/>` | 订单卡（Dashboard/History 复用） |
-| `<StatusBadge status/>` | 状态彩色标签（契约 4 态） |
-| `<StatusTimeline status/>` | 三步进度条 + 取消特判（Tracking 用） |
-| `<VehicleIcon vehicle/>` | ROBOT/DRONE 图标（向导候选卡用） |
-| `<MapView pickup destination vehicle route/>` | 共享 Leaflet 地图（Zihang 选点、Yuning 追踪都用它） |
+| `<AppHeader/>` | Top bar (logo / Dashboard / Orders / New / logout), mounted in App.jsx |
+| `<OrderCard order mini/>` | Order card (reused by Dashboard / History) |
+| `<StatusBadge status/>` | Colored status tag (contract 4-state) |
+| `<StatusTimeline status/>` | 3-step progress bar + CANCELLED special case (Tracking) |
+| `<VehicleIcon vehicle/>` | ROBOT/DRONE icon (wizard candidate cards) |
+| `<MapView pickup destination vehicle route/>` | Shared Leaflet map (Zihang's picker and Yuning's tracking both use it) |
 
-## 设计系统换肤
+## Theming
 
-所有 antd 组件的配色/圆角集中在 `src/theme.js`。改 `colorPrimary` 一处即全站换肤
-（线框图的黑按钮可在此调）。
+All antd colors/radii live in `src/theme.js`. Change `colorPrimary` once to re-skin the
+whole app (the wireframe's black buttons can be tuned here).
 
-## 状态怎么用
+## How to use the stores
 
-- `useAuth()` — 登录/注册/登出，刷新不掉线（localStorage 水合）。
-- `useWizard()` — 下单草稿；**AI 解析结果用 `prefill()` 灌进来**，向导照原样确认（"AI drafts, wizard verifies"）。
-- `useOrders()` — 订单列表，`refresh()` 拉取，Dashboard/History 共用。
+- `useAuth()` — login/register/logout; survives refresh (localStorage hydration).
+- `useWizard()` — order draft; **pour AI parse results in via `prefill()`** and let the
+  wizard confirm them as-is ("AI drafts, wizard verifies").
+- `useOrders()` — order list; `refresh()` fetches, shared by Dashboard/History.

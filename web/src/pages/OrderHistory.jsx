@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { StatusBadge } from '../components/StatusBadge';
 import { useOrders } from '../store/orders';
-// Owner: Zihang Cao (订单-获取列表). Wireframe: UI线框图/09_OrderHistory_历史订单.svg
+// Owner: Zihang Cao (order list). Wireframe: wireframes/09_OrderHistory.svg
 // Columns follow the contract list item: orderId/status/createdAt/packageDescription/estimatedCost.
 export default function OrderHistory() {
     const { list, loading, refresh } = useOrders();
