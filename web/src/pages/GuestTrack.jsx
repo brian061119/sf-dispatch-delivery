@@ -1,4 +1,4 @@
-// Owner: Yuning Zhang (tracking). No wireframe yet — simple order-number form.
+// Owner: Yuning Zhang (tracking). Wireframe: wireframes/11_GuestTrack.svg
 // Placeholder: route works, implementation pending. PUBLIC page (no login):
 // guest enters an order number, then navigate(`/tracking/${orderNo}`).
 // Reuses api/tracking.js (getTracking) — requires the backend to allow
