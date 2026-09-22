@@ -15,9 +15,9 @@ or backend path details directly**.
 
 ```
 ┌────────────────────────────────────────────────────┐
-│ pages/  7 placeholder stubs (one per owner —       │
+│ pages/  7 minimal text stubs (one per owner —      │
 │         owners replace them with real pages)       │
-│ components/  6 shared components + PagePlaceholder │
+│ components/  6 shared components (design system)   │
 ├────────────────────────────────────────────────────┤
 │ store/   zustand × 3: auth (session), wizard       │
 │          (order draft), orders (list cache)        │
@@ -184,7 +184,7 @@ contract**; a backend owner must claim it.)
 | `index.html` | Mount point `#root` + loads `/src/main.jsx` |
 | `src/main.jsx` | Render entry. Three wrappers: `ConfigProvider` (theme) → `AntdApp` → `BrowserRouter`. **antd v6's message must live inside `<AntdApp>` context**, otherwise it misses the theme |
 | `src/theme.js` | antd theme tokens (`colorPrimary: #1677ff`). One place to re-skin the app |
-| `src/App.jsx` | Route table (7 routes) + `RequireAuth` guard (redirects to `/login`) + `AppHeader` only after login. Routes in one place = a map of the whole app |
+| `src/App.jsx` | Route table (7 routes) + `RequireAuth` guard (**temporarily a pass-through while Login/Register are stubs** — restore the `isAuthed()` redirect when the real Login lands) + `AppHeader` only after login. Routes in one place = a map of the whole app |
 
 ### lib infrastructure (2)
 
@@ -222,18 +222,21 @@ contract**; a backend owner must claim it.)
 | `StatusTimeline` | status → 3-step progress (PENDING→IN_TRANSIT→DELIVERED), CANCELLED special-cased to the error state |
 | `VehicleIcon` | ROBOT → robot icon, DRONE → rocket approximation (the icon set has no drone; a comment marks the swap point). Used on wizard candidate cards |
 | `MapView` | **Shared Leaflet map**: pickup/destination/vehicle/route all prop-driven, default center San Francisco. Zihang's order picker and Yuning's live tracking use the SAME component — map logic written once |
-| `PagePlaceholder` | The stub renderer behind all 7 page files: ownership card + API list + TODO list. Exists so the app runs end-to-end while no page is implemented; disappears as owners replace their stubs |
 
-### pages (7, by owner)
+### pages (7 minimal stubs, by owner)
 
-| Page | What / why |
+Every page file is a **minimal text stub** (page name + owner, ~10 lines). The owner
+replaces it with the real page in the same file — the route in `App.jsx` already
+points at it. The design intent each owner implements:
+
+| Page | Owner implements (design intent) |
 |---|---|
-| `Login` / `Register` (Ziyuan) | antd Form validation (required / email format / password confirmation match); on success go through the auth store to `/dashboard`. Register body is contract-TBD — we send {username,password,email} for now |
-| `Dashboard` (Zihang) | Greeting + create entry + **AI one-sentence order card** + active deliveries list (DELIVERED/CANCELLED filtered out) |
-| `OrderWizard` (Zihang) | **4 steps, 1 route**: addresses (line1+zip, city fixed SF) → package + priority → candidates → pay. Candidate cards show isFastest/isCheapest tags, stationName, and disable availableUnits=0; mock payment only sends `paymentMethodId: mock_card_<last4>`. `TODO(Zihang)` marks the fill-in points: map picker, order summary card |
+| `Login` / `Register` (Ziyuan) | antd Form validation (required / email format / password confirmation match); on success go through the auth store to `/dashboard`. Register body is contract-TBD — send {username,password,email} until confirmed. **When Login lands, restore the `isAuthed()` check in App.jsx's RequireAuth** (currently a temporary pass-through so all URLs open directly) |
+| `Dashboard` (Zihang) | Greeting + create entry + **AI one-sentence order card** (parseOrderText → `useWizard().prefill()` → jump into the wizard) + active deliveries list (DELIVERED/CANCELLED filtered out) |
+| `OrderWizard` (Zihang) | **4 steps, 1 route**: addresses (line1+zip, city fixed SF) → package + priority → candidates (isFastest/isCheapest tags, disable availableUnits=0) → pay (mock `paymentMethodId: mock_card_<last4>`) |
 | `OrderHistory` (Zihang) | antd Table of all orders; columns = the 5 contract list-item fields; row-level Track link jumps to tracking |
-| `OrderDetail` (Y) | Static info (detail body is contract-TBD → everything rendered with optional chaining) + **confirm receipt** (PATCH confirm-receipt; under the 4-state model DELIVERED means "signed") + review form (rating/comment/damageReported) |
-| `Tracking` (Yuning) | **5s polling** of `/orders/:id/tracking`, rendering StatusTimeline + MapView current position; the contract has no route array (TODO left), no cancel endpoint (button parked with an explanatory comment); the interval is cleaned up on unmount |
+| `OrderDetail` (Y) | Static info (detail body is contract-TBD → render with optional chaining) + **confirm receipt** (PATCH confirm-receipt) + review form (rating/comment/damageReported) |
+| `Tracking` (Yuning) | **5s polling** of `/orders/:id/tracking` with unmount cleanup, rendering StatusTimeline + MapView current position; the contract has no route array and no cancel endpoint — both stay parked |
 
 ---
 

@@ -10,7 +10,10 @@ import OrderWizard from './pages/OrderWizard';
 import Register from './pages/Register';
 import Tracking from './pages/Tracking';
 function RequireAuth({ children }) {
-    return isAuthed() ? <>{children}</> : <Navigate to="/login" replace/>;
+    // TEMP while Login/Register are placeholders: let every route render so all
+    // page URLs stay directly accessible. Restore the isAuthed() check (and the
+    // redirect to /login) when Ziyuan's real Login lands.
+    return <>{children}</>;
 }
 export default function App() {
     return (<Layout style={{ minHeight: '100vh' }}>

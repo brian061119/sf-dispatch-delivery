@@ -26,8 +26,10 @@ $env:VITE_MOCK="1"; npm run dev      # Windows PowerShell
 ```
 
 Mock mode serves contract-shaped fake data from `src/api/mock.js` (seed orders, delivery
-candidates, a courier position that drifts). Any username/password logs you in; the full
-flow (order / confirm receipt / review) is clickable. Refresh resets everything.
+candidates, a courier position that drifts). **All 7 pages are minimal text placeholders
+waiting for their owners** — the auth guard in `App.jsx` is temporarily a pass-through
+so every page URL opens directly (restore the `isAuthed()` check when Login lands).
+Refresh resets everything.
 
 The backend is proxied to `http://localhost:8080` by default (see `vite.config.js`).
 Change it with `VITE_API_PROXY_TARGET=http://<backend-host:port> npm run dev`.
@@ -42,7 +44,7 @@ Change it with `VITE_API_PROXY_TARGET=http://<backend-host:port> npm run dev`.
 | `src/api/*` | API functions grouped by contract area (see table below) |
 | `src/store/*` | Zustand: `auth` / `wizard` / `orders` |
 | `src/components/*` | Design-system shared components |
-| `src/pages/*` | 7 pages, TODOs tagged by owner |
+| `src/pages/*` | 7 minimal text stubs, one per owner — owners replace them with real pages |
 
 ## Ownership ↔ routes ↔ endpoints
 
@@ -54,9 +56,10 @@ Change it with `VITE_API_PROXY_TARGET=http://<backend-host:port> npm run dev`.
 | **Yuning Zhang** | Tracking `/tracking/:orderId` | `GET /orders/:id/tracking` (5s polling) | 🔲 Placeholder — owner implements |
 | **Yiting Qi** | Foundation (everything above: routing / guards / stores / api layer / components / mock) | All | ✅ Done |
 
-> Every page file is a stub rendered by `components/PagePlaceholder.jsx` that names its
-> owner, the API functions to call, and the TODO list. Owners replace their stub files
-> entirely — the foundation around them (routes, guards, stores, api) is already wired.
+> Every page file is a minimal text stub (page name + owner, nothing else). Owners
+> replace their stub file entirely — the foundation around it (routes, stores, api) is
+> already wired. The auth guard in `App.jsx` is temporarily a pass-through so every URL
+> opens directly; restore the `isAuthed()` check when the real Login lands.
 
 > **Route ↔ wireframe mapping**: wireframes 04–07 (the 4 order steps) are merged into ONE
 > route `/order/new` with 4 internal steps; 03 Dashboard / 09 History share `OrderCard`;

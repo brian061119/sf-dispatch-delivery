@@ -1,10 +1,10 @@
 # WeDelivery Frontend — Handoff Doc (for the 4 teammates)
 
 > The foundation (scaffolding / design system / API layer / state layer / routing /
-> contract) is complete and fully verified (`npm run build` passes; the whole flow was
-> click-tested in mock mode).
-> You only need to fill in business logic on **your own pages**. Don't rebuild shared
-> pieces — reuse first, create second.
+> contract / mock mode) is complete and `npm run build` passes.
+> **Your page files are minimal text placeholders** — each renders just the page name
+> and your name. Replace your stub file(s) with the real page; everything around them
+> is already wired. Don't rebuild shared pieces — reuse first, create second.
 >
 > **Single source of truth for the contract: `api-contract.md` (2026-09-21 confirmed
 > version) in the team repo root.** The frontend `src/types/api.js` is its mirror; when
@@ -26,25 +26,26 @@ npm run dev          # http://localhost:3000
   (Windows PowerShell: `$env:VITE_API_PROXY_TARGET="..."; npm run dev`).
 - **Backend not up yet?** Use mock mode: `VITE_MOCK=1 npm run dev` (PowerShell:
   `$env:VITE_MOCK="1"; npm run dev`). `src/api/mock.js` serves contract-shaped fake
-  data (seed orders / candidates / a drifting courier position); any username/password
-  logs in; order/receipt/review all clickable; refresh resets. For integration just
-  drop `VITE_MOCK` — zero business-code changes (the switch is the first line of every
-  function in `api/*.js`).
+  data (seed orders / candidates / a drifting courier position) so you can develop
+  your page without the backend. All pages currently show one-line text placeholders;
+  **the auth guard in `App.jsx` is temporarily a pass-through so every page URL opens
+  directly — restore the `isAuthed()` check when Ziyuan's real Login lands.** For
+  integration just drop `VITE_MOCK` — zero business-code changes (the switch is the
+  first line of every function in `api/*.js`).
 
 ## 2. Your task card
 
 | You | Pages (files) | Routes | APIs (already written, just import) | Definition of done |
 |---|---|---|---|---|
 | **Ziyuan Xu** | `pages/Login.jsx`, `pages/Register.jsx` | `/login`, `/register` | `api/auth.js`: `login` `register` `logout` `getMe` | Full form validation; errors surfaced; success → `/dashboard`; refresh stays logged in; integration with `/api/auth/*` passes (**register body is contract-TBD — confirm with the backend first**) |
-| **Zihang Cao** | `pages/Dashboard.jsx`, `pages/OrderWizard.jsx`, `pages/OrderHistory.jsx` | `/dashboard`, `/order/new`, `/orders` | `api/recommendation.js`: `getRecommendations`; `api/order.js`: `createOrder` `getOrders`; `api/station.js`: `getStations` | The 4-step wizard completes an order; both `TODO(Zihang)` items filled (map click-to-pick filling lat/lng, step-4 order summary card); history pagination usable |
-| **Y** | `pages/OrderDetail.jsx` | `/order/:orderId` | `api/order.js`: `getOrder` `confirmReceipt` `submitReview` | Detail fully displayed (**detail body is contract-TBD** — currently defensive rendering; fill fields once confirmed); receipt button state logic correct; review submission gives feedback |
-| **Yuning Zhang** | `pages/Tracking.jsx` | `/tracking/:orderId` | `api/tracking.js`: `getTracking` (5s polling already written) | Live position rendered on the map (the contract has current position only, no route history — if you need a trail, file a backend request); the unmount timer cleanup (already written) stays intact |
+| **Zihang Cao** | `pages/Dashboard.jsx`, `pages/OrderWizard.jsx`, `pages/OrderHistory.jsx` | `/dashboard`, `/order/new`, `/orders` | `api/recommendation.js`: `getRecommendations`; `api/order.js`: `createOrder` `getOrders`; `api/station.js`: `getStations` | The 4-step wizard completes an order; map click-to-pick fills lat/lng; step-4 order summary card; history pagination usable |
+| **Y** | `pages/OrderDetail.jsx` | `/order/:orderId` | `api/order.js`: `getOrder` `confirmReceipt` `submitReview` | Detail fully displayed (**detail body is contract-TBD** — render defensively with optional chaining until confirmed); receipt button state logic correct; review submission gives feedback |
+| **Yuning Zhang** | `pages/Tracking.jsx` | `/tracking/:orderId` | `api/tracking.js`: `getTracking` (poll every 5s) | Live position rendered on the map (the contract has current position only, no route history — if you need a trail, file a backend request); the polling interval is cleaned up on unmount |
 
 Every file's header comment names its owner and the matching wireframe number
-(`wireframes/NN_xxx.svg`). **Your page file is a stub built on
-`components/PagePlaceholder.jsx` — delete the stub and write your real page in the
-same file** (the route in `App.jsx` already points at it). The stub's TODO list is
-your starting checklist; the Definition of done column above is the acceptance bar.
+(`wireframes/NN_xxx.svg`). **Your page file is a minimal text stub — replace it with
+your real page in the same file** (the route in `App.jsx` already points at it). The
+task card above is your checklist; the Definition of done column is the acceptance bar.
 
 ## 3. The 6 rules everyone must follow
 
