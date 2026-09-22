@@ -1,35 +1,36 @@
-import { LockOutlined, UserOutlined } from '@ant-design/icons';
-import { App, Button, Card, Form, Input } from 'antd';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../store/auth';
 // Owner: Ziyuan Xu (auth). Wireframe: wireframes/01_Login.svg
+import { App, Button } from 'antd';
+import { useNavigate } from 'react-router-dom';
+import PagePlaceholder from '../components/PagePlaceholder';
+import { useAuth } from '../store/auth';
 export default function Login() {
+    return (<PagePlaceholder owner="Ziyuan Xu" page="Login" wireframe="wireframes/01_Login.svg" apis={['useAuth().login(username, password)  ->  POST /api/auth/login  (store/auth.js wraps api/auth.js)']} todos={[
+            'Build the form with antd <Form>: username + password, both required',
+            "On submit: await useAuth().login(...) then navigate('/dashboard')",
+            'On failure: surface the error with antd message (App.useApp())',
+            'Link to /register for new users',
+            'Remove the temporary dev sign-in below once the real form works',
+        ]}>
+      <DevSignIn />
+    </PagePlaceholder>);
+}
+// TEMPORARY SCAFFOLD — one-click mock sign-in so teammates can reach the
+// protected pages while this page is still a stub. REMOVE when the real form
+// lands. (Any credentials work in mock mode.)
+function DevSignIn() {
     const login = useAuth((s) => s.login);
     const nav = useNavigate();
     const { message } = App.useApp();
-    async function onFinish(v) {
+    async function signIn() {
         try {
-            await login(v.username, v.password);
+            await login('demo', 'demo');
             nav('/dashboard');
         }
         catch {
-            message.error('Login failed — check username/password');
+            message.error('Dev sign-in failed — is the backend or VITE_MOCK=1 running?');
         }
     }
-    return (<Card title="Log in" style={{ maxWidth: 400, margin: '48px auto' }}>
-      <Form layout="vertical" onFinish={onFinish}>
-        <Form.Item name="username" rules={[{ required: true, message: 'Username required' }]}>
-          <Input prefix={<UserOutlined />} placeholder="Username"/>
-        </Form.Item>
-        <Form.Item name="password" rules={[{ required: true, message: 'Password required' }]}>
-          <Input.Password prefix={<LockOutlined />} placeholder="Password"/>
-        </Form.Item>
-        <Button type="primary" htmlType="submit" block>
-          Log in
-        </Button>
-      </Form>
-      <div style={{ marginTop: 12, textAlign: 'center' }}>
-        New here? <Link to="/register">Register →</Link>
-      </div>
-    </Card>);
+    return (<Button block onClick={signIn} style={{ marginTop: 16 }}>
+      [TEMP] Dev sign-in — scaffolding only, delete with the real form
+    </Button>);
 }

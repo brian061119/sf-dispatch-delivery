@@ -15,15 +15,16 @@ or backend path details directly**.
 
 ```
 ┌────────────────────────────────────────────────────┐
-│ pages/  7 pages (split by owner)                   │
-│ components/  6 shared components (design system)   │
+│ pages/  7 placeholder stubs (one per owner —       │
+│         owners replace them with real pages)       │
+│ components/  6 shared components + PagePlaceholder │
 ├────────────────────────────────────────────────────┤
 │ store/   zustand × 3: auth (session), wizard       │
 │          (order draft), orders (list cache)        │
 ├────────────────────────────────────────────────────┤
 │ api/     contract-grouped API functions (auth /    │
 │          recommendation / order / tracking /       │
-│          station / ai)                             │
+│          station / ai) + mock.js (VITE_MOCK=1)     │
 ├────────────────────────────────────────────────────┤
 │ lib/     http.js (the ONLY axios instance, JWT,    │
 │          401 handling) + auth.js                   │
@@ -221,6 +222,7 @@ contract**; a backend owner must claim it.)
 | `StatusTimeline` | status → 3-step progress (PENDING→IN_TRANSIT→DELIVERED), CANCELLED special-cased to the error state |
 | `VehicleIcon` | ROBOT → robot icon, DRONE → rocket approximation (the icon set has no drone; a comment marks the swap point). Used on wizard candidate cards |
 | `MapView` | **Shared Leaflet map**: pickup/destination/vehicle/route all prop-driven, default center San Francisco. Zihang's order picker and Yuning's live tracking use the SAME component — map logic written once |
+| `PagePlaceholder` | The stub renderer behind all 7 page files: ownership card + API list + TODO list. Exists so the app runs end-to-end while no page is implemented; disappears as owners replace their stubs |
 
 ### pages (7, by owner)
 

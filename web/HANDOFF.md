@@ -41,7 +41,10 @@ npm run dev          # http://localhost:3000
 | **Yuning Zhang** | `pages/Tracking.jsx` | `/tracking/:orderId` | `api/tracking.js`: `getTracking` (5s polling already written) | Live position rendered on the map (the contract has current position only, no route history — if you need a trail, file a backend request); the unmount timer cleanup (already written) stays intact |
 
 Every file's header comment names its owner and the matching wireframe number
-(`wireframes/NN_xxx.svg`).
+(`wireframes/NN_xxx.svg`). **Your page file is a stub built on
+`components/PagePlaceholder.jsx` — delete the stub and write your real page in the
+same file** (the route in `App.jsx` already points at it). The stub's TODO list is
+your starting checklist; the Definition of done column above is the acceptance bar.
 
 ## 3. The 6 rules everyone must follow
 

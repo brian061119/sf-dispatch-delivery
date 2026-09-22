@@ -48,11 +48,15 @@ Change it with `VITE_API_PROXY_TARGET=http://<backend-host:port> npm run dev`.
 
 | Owner | Pages / routes | Endpoints used (all `/api`-prefixed) | Status |
 |---|---|---|---|
-| **Ziyuan Xu** | Login `/login`, Register `/register` | `POST /auth/register`, `POST /auth/login` (+ `logout`/`me`) | Skeleton works |
-| **Zihang Cao** | Dashboard `/dashboard`, History `/orders`, Wizard `/order/new` | `POST /recommendations`, `POST /orders`, `GET /orders`, `GET /stations` | Skeleton works |
-| **Y** | OrderDetail `/order/:orderId` | `GET /orders/:id`, `PATCH /orders/:id/confirm-receipt`, `POST /orders/:id/review` | Skeleton works |
-| **Yuning Zhang** | Tracking `/tracking/:orderId` | `GET /orders/:id/tracking` (5s polling) | Skeleton works |
-| **Yiting Qi** | Foundation (everything above) | All | ✅ |
+| **Ziyuan Xu** | Login `/login`, Register `/register` | `POST /auth/register`, `POST /auth/login` (+ `logout`/`me`) | 🔲 Placeholder — owner implements |
+| **Zihang Cao** | Dashboard `/dashboard`, History `/orders`, Wizard `/order/new` | `POST /recommendations`, `POST /orders`, `GET /orders`, `GET /stations` | 🔲 Placeholder — owner implements |
+| **Y** | OrderDetail `/order/:orderId` | `GET /orders/:id`, `PATCH /orders/:id/confirm-receipt`, `POST /orders/:id/review` | 🔲 Placeholder — owner implements |
+| **Yuning Zhang** | Tracking `/tracking/:orderId` | `GET /orders/:id/tracking` (5s polling) | 🔲 Placeholder — owner implements |
+| **Yiting Qi** | Foundation (everything above: routing / guards / stores / api layer / components / mock) | All | ✅ Done |
+
+> Every page file is a stub rendered by `components/PagePlaceholder.jsx` that names its
+> owner, the API functions to call, and the TODO list. Owners replace their stub files
+> entirely — the foundation around them (routes, guards, stores, api) is already wired.
 
 > **Route ↔ wireframe mapping**: wireframes 04–07 (the 4 order steps) are merged into ONE
 > route `/order/new` with 4 internal steps; 03 Dashboard / 09 History share `OrderCard`;

@@ -1,40 +1,10 @@
-import { Card, Space } from 'antd';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { getTracking } from '../api/tracking';
-import { MapView } from '../components/MapView';
-import { StatusTimeline } from '../components/StatusTimeline';
-// Owner: Yuning Zhang (tracking). Polls GET /api/orders/:orderId/tracking every 5s
-// and renders the live map + timeline. (Contract's WS push is a stretch feature;
-// P0/P1 uses polling only.)
+// Owner: Yuning Zhang (tracking). Wireframe: wireframes/08_Tracking.svg
+import PagePlaceholder from '../components/PagePlaceholder';
 export default function Tracking() {
-    const { orderId = '' } = useParams();
-    const [track, setTrack] = useState();
-    const timer = useRef();
-    const load = useCallback(async () => setTrack(await getTracking(orderId)), [orderId]);
-    useEffect(() => {
-        load();
-        timer.current = window.setInterval(load, 5000); // 5s polling for "live" movement
-        return () => window.clearInterval(timer.current);
-    }, [load]);
-    if (!track) return null;
-    // Contract tracking payload has the current position only, no route history.
-    // TODO(Yuning): if the backend later exposes a route array, pass it to MapView.
-    const vehicle = track.currentLat != null ? { lat: track.currentLat, lng: track.currentLng } : undefined;
-    return (
-        <Space orientation="vertical" style={{ width: '100%' }} size={16}>
-            <Card
-                title={`Order #${track.orderId} · ${track.vehicleType ?? ''}`}
-                extra={track.estimatedArrival ? `ETA ${new Date(track.estimatedArrival).toLocaleTimeString()}` : undefined}
-            >
-                <StatusTimeline status={track.status} />
-                {/* TODO(team): the contract has no cancel endpoint — the Cancel button
-                    from the wireframe is parked until the backend adds one. See HANDOFF.md. */}
-            </Card>
-
-            <Card title="Live map" size="small">
-                <MapView vehicle={vehicle} />
-            </Card>
-        </Space>
-    );
+    return (<PagePlaceholder owner="Yuning Zhang" page="Live Tracking" wireframe="wireframes/08_Tracking.svg" apis={['getTracking(orderId)  ->  GET /api/orders/:orderId/tracking  (poll every 5s; the optional WS in the contract is a stretch goal)']} todos={[
+            'Poll getTracking every 5s with setInterval; clear the interval on unmount (memory-leak cleanup is part of the task)',
+            'Render <StatusTimeline status/> + <MapView/> with the courier\'s current position',
+            'The contract returns the current position only — no route history. If you want a trail, file a backend request first',
+            'The contract has NO cancel endpoint: the wireframe\'s Cancel button stays parked until the backend adds one',
+        ]}/>);
 }
