@@ -53,17 +53,21 @@ Change it with `VITE_API_PROXY_TARGET=http://<backend-host:port> npm run dev`.
 | **Ziyuan Xu** | Login `/login`, Register `/register` | `POST /auth/register`, `POST /auth/login` (+ `logout`/`me`) | 🔲 Placeholder — owner implements |
 | **Zihang Cao** | Dashboard `/dashboard`, History `/orders`, Wizard `/order/new` | `POST /recommendations`, `POST /orders`, `GET /orders`, `GET /stations` | 🔲 Placeholder — owner implements |
 | **Y** | OrderDetail `/order/:orderId` | `GET /orders/:id`, `PATCH /orders/:id/confirm-receipt`, `POST /orders/:id/review` | 🔲 Placeholder — owner implements |
-| **Yuning Zhang** | Tracking `/tracking/:orderId` | `GET /orders/:id/tracking` (5s polling) | 🔲 Placeholder — owner implements |
+| **Yuning Zhang** | Tracking `/tracking/:orderId`, GuestTrack `/track` | `GET /orders/:id/tracking` (5s polling; also called anonymously) | 🔲 Placeholder — owner implements |
 | **Yiting Qi** | Foundation (everything above: routing / guards / stores / api layer / components / mock) | All | ✅ Done |
 
 > Every page file is a minimal text stub (page name + owner, nothing else). Owners
 > replace their stub file entirely — the foundation around it (routes, stores, api) is
 > already wired. The auth guard in `App.jsx` is temporarily a pass-through so every URL
-> opens directly; restore the `isAuthed()` check when the real Login lands.
+> opens directly; restore the `isAuthed()` check when the real Login lands — but keep
+> `/track` and `/tracking/:orderId` public (guest order lookup: the order number is
+> the credential, like a FedEx tracking number).
 
 > **Route ↔ wireframe mapping**: wireframes 04–07 (the 4 order steps) are merged into ONE
 > route `/order/new` with 4 internal steps; 03 Dashboard / 09 History share `OrderCard`;
 > 08 Tracking and the detail page cross-link via `Live tracking →`.
+> `/track` (guest lookup, no wireframe yet) is a simple order-number form that forwards
+> to `/tracking/:orderId`.
 > **Do NOT build two versions of an order page** (detail = static info + receipt + review;
 > tracking = live map + timeline).
 

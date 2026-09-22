@@ -40,7 +40,7 @@ npm run dev          # http://localhost:3000
 | **Ziyuan Xu** | `pages/Login.jsx`, `pages/Register.jsx` | `/login`, `/register` | `api/auth.js`: `login` `register` `logout` `getMe` | Full form validation; errors surfaced; success → `/dashboard`; refresh stays logged in; integration with `/api/auth/*` passes (**register body is contract-TBD — confirm with the backend first**) |
 | **Zihang Cao** | `pages/Dashboard.jsx`, `pages/OrderWizard.jsx`, `pages/OrderHistory.jsx` | `/dashboard`, `/order/new`, `/orders` | `api/recommendation.js`: `getRecommendations`; `api/order.js`: `createOrder` `getOrders`; `api/station.js`: `getStations` | The 4-step wizard completes an order; map click-to-pick fills lat/lng; step-4 order summary card; history pagination usable |
 | **Y** | `pages/OrderDetail.jsx` | `/order/:orderId` | `api/order.js`: `getOrder` `confirmReceipt` `submitReview` | Detail fully displayed (**detail body is contract-TBD** — render defensively with optional chaining until confirmed); receipt button state logic correct; review submission gives feedback |
-| **Yuning Zhang** | `pages/Tracking.jsx` | `/tracking/:orderId` | `api/tracking.js`: `getTracking` (poll every 5s) | Live position rendered on the map (the contract has current position only, no route history — if you need a trail, file a backend request); the polling interval is cleaned up on unmount |
+| **Yuning Zhang** | `pages/Tracking.jsx`, `pages/GuestTrack.jsx` | `/tracking/:orderId`, `/track` (public) | `api/tracking.js`: `getTracking` (poll every 5s) | Live position rendered on the map (the contract has current position only, no route history — if you need a trail, file a backend request); the polling interval is cleaned up on unmount. GuestTrack: order-number form (no login) that navigates to `/tracking/:orderId`; both routes must stay outside the auth guard |
 
 Every file's header comment names its owner and the matching wireframe number
 (`wireframes/NN_xxx.svg`). **Your page file is a minimal text stub — replace it with
@@ -94,6 +94,11 @@ Marked TBD in the contract or discovered during frontend implementation, by prio
 - [ ] **Error shapes for payment failure vs. order failure** (TBD) — the payment page needs to distinguish them in its messaging
 - [ ] **`POST /api/ai/parse`** (P1 frontend proposal, not in the contract) — which backend owner claims it? A regex stub is fine to start
 - [ ] **`POST /api/auth/logout`**: server-side invalidation or pure client-side? (TBD) — the frontend currently "calls best-effort, always clears locally"
+- [ ] **Anonymous access to `GET /api/orders/:orderId/tracking`** (new requirement:
+  guest order lookup at `/track`, no login) — the order number acts as the credential
+  (FedEx model). Backend should exempt this endpoint from JWT auth, expose no PII in
+  its response, and ideally rate-limit it. Order DETAIL (`/api/orders/:id`) stays
+  behind auth — it carries addresses and the receipt/review actions
 - [ ] Enum double-check: `ROBOT|DRONE`; `PENDING|IN_TRANSIT|DELIVERED|CANCELLED`; `STANDARD|EXPRESS`
 
 ## 6. Who to ask

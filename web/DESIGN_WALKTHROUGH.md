@@ -15,8 +15,9 @@ or backend path details directly**.
 
 ```
 ┌────────────────────────────────────────────────────┐
-│ pages/  7 minimal text stubs (one per owner —      │
-│         owners replace them with real pages)       │
+│ pages/  8 minimal text stubs (one per owner —      │
+│         owners replace them with real pages;       │
+│         /track + /tracking/:id are public)         │
 │ components/  6 shared components (design system)   │
 ├────────────────────────────────────────────────────┤
 │ store/   zustand × 3: auth (session), wizard       │
