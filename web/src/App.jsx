@@ -1,7 +1,6 @@
 import { Layout } from 'antd';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppHeader } from './components/AppHeader';
-import { isAuthed } from './lib/auth';
 import Dashboard from './pages/Dashboard';
 import GuestTrack from './pages/GuestTrack';
 import Login from './pages/Login';
@@ -21,7 +20,7 @@ function RequireAuth({ children }) {
 }
 export default function App() {
     return (<Layout style={{ minHeight: '100vh' }}>
-      {isAuthed() && <AppHeader />}
+      <AppHeader />
       <Layout.Content style={{ padding: 24, maxWidth: 1100, margin: '0 auto', width: '100%' }}>
         <Routes>
           <Route path="/login" element={<Login />}/>
