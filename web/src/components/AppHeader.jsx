@@ -35,7 +35,9 @@ export function AppHeader() {
   return (
     <Layout.Header style={barStyle}>
       <Typography.Title level={4} style={{ margin: 0 }}>
-        {BRAND_NAME}
+        <Link to="/dashboard" style={{ color: "inherit" }}>
+          {BRAND_NAME}
+        </Link>
       </Typography.Title>
       <Space size="large">
         <Link to="/dashboard">Dashboard</Link>
