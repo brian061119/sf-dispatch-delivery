@@ -21,7 +21,8 @@ export function AppHeader() {
     paddingInline: 24,
   };
   if (!token) {
-    const onLoginPage = pathname === "/login";
+    const onAuthPage = pathname === "/login" || pathname === "/register";
+
     return (
       <Layout.Header style={barStyle}>
         <Typography.Title level={4} style={{ margin: 0 }}>
@@ -29,10 +30,14 @@ export function AppHeader() {
             {BRAND_NAME}
           </Link>
         </Typography.Title>
+
         <div style={{ flex: 1 }} />
-        <Button type="primary" onClick={() => nav(onLoginPage ? "/register" : "/login")}>
-          {onLoginPage ? "Sign up" : "Log in"}
-        </Button>
+
+        {!onAuthPage && (
+          <Button type="primary" onClick={() => nav("/login")}>
+            Log in
+          </Button>
+        )}
       </Layout.Header>
     );
   }
