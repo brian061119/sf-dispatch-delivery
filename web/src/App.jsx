@@ -32,7 +32,9 @@ export default function App() {
           <Route path="/order/new" element={<RequireAuth><OrderWizard /></RequireAuth>}/>
           <Route path="/order/:orderId" element={<RequireAuth><OrderDetail /></RequireAuth>}/>
           <Route path="/tracking/:orderId" element={<Tracking />}/>
-          <Route path="*" element={<Navigate to="/dashboard" replace/>}/>
+          {/* Landing page is auth-aware (WeDelivery/FedEx model): guests land on the
+              public tracking lookup, logged-in users land on their dashboard. */}
+          <Route path="*" element={<Navigate to={isAuthed() ? '/dashboard' : '/track'} replace/>}/>
         </Routes>
       </Layout.Content>
     </Layout>);

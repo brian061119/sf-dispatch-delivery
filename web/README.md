@@ -48,6 +48,7 @@ Change it with `VITE_API_PROXY_TARGET=http://<backend-host:port> npm run dev`.
 
 Public: `/login` `/register` `/track` `/tracking/:orderId` (guest order lookup, no login).
 Behind auth: `/dashboard` `/orders` `/order/new` `/order/:orderId`.
+Landing `/` is auth-aware (WeDelivery/FedEx model): guests → `/track`, logged-in → `/dashboard`.
 The guard accepts ANY token string (social-ai style — the backend is what validates it).
 Demo phase shortcut while Login is a stub: DevTools → Application → Local Storage → set
 `wd_token` to any value → refresh = "logged in"; delete the key = guest again.
