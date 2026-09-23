@@ -2,7 +2,7 @@
 
 ## 1. Goal
 
-This folder provides the shared frontend foundation for the dispatch and delivery app. It includes routing, authentication hooks, API wrappers, shared UI components, state stores, mock data, and page placeholders.
+This folder provides the shared frontend foundation for the dispatch and delivery app. It includes routing, authentication hooks, API wrappers, shared UI components, state stores, mock data, and page placeholders
 
 ## 2. Technology
 
