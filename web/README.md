@@ -51,7 +51,7 @@ Behind auth: `/dashboard` `/orders` `/order/new` `/order/:orderId`.
 Landing `/` is auth-aware (WeDelivery/FedEx model): guests → `/track`, logged-in → `/dashboard`.
 The guard accepts ANY token string (social-ai style — the backend is what validates it).
 Demo phase shortcut while Login is a stub: DevTools → Application → Local Storage → set
-`wd_token` to any value → refresh = "logged in"; delete the key = guest again.
+`token` to any value → refresh = "logged in"; delete the key = guest again.
 
 ## Theming
 

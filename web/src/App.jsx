@@ -14,7 +14,7 @@ function RequireAuth({ children }) {
     // social-ai style: the frontend trusts token PRESENCE (any string counts) —
     // the backend is the one that validates it on real API calls. During the demo
     // phase (Login/Register still stubs) you can "log in" manually: DevTools →
-    // Application → Local Storage → set  wd_token = anything  → refresh.
+    // Application → Local Storage → set  token = anything  → refresh.
     // PUBLIC routes (never guarded): /login, /register, /track, /tracking/:orderId
     // (guest order lookup — the order number itself is the credential).
     return isAuthed() ? <>{children}</> : <Navigate to="/login" replace/>;

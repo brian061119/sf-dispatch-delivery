@@ -8,7 +8,7 @@ export default function Login() {
           real Login lands. Until then the auth guard accepts ANY token string. */}
       <p style={{ color: '#888', maxWidth: 520 }}>
         Demo shortcut (no backend needed): open DevTools → Application → Local Storage
-        → add key <code>wd_token</code> with any value → refresh. You are now "logged
+        → add key <code>token</code> with any value → refresh. You are now "logged
         in" and every protected page opens. Delete the key (or click Log out) to
         become a guest again.
       </p>

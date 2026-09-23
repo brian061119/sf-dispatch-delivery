@@ -1,5 +1,5 @@
 // Token + username persistence. One place so the whole app reads auth the same way.
-const TOKEN_KEY = 'wd_token';
+const TOKEN_KEY = 'token';
 const USER_KEY = 'wd_username';
 export const getToken = () => localStorage.getItem(TOKEN_KEY);
 export const getUsername = () => localStorage.getItem(USER_KEY);
