@@ -1,14 +1,17 @@
 import { Button, Layout, Space, Typography } from "antd";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { BRAND_NAME } from "../lib/brand";
 import { useAuth } from "../store/auth";
 // Top bar. TWO variants driven by the auth token:
-//   guest  — public pages (/track, /tracking/:id): brand + [Log in]
+//   guest  — public pages (/track, /tracking/:id): brand + auth entry button
 //   authed — brand + Dashboard + Orders + [+ Create a new delivery] + user + Log out
-// Rendered on every route (App.jsx); guests must still see a header with a login entry.
+// Rendered on every route (App.jsx). On the auth pages themselves the button
+// cross-links (GitHub style): /login shows "Sign up", /register shows "Log in",
+// so the header never offers the page you are already on.
 export function AppHeader() {
   const { token, username, logout } = useAuth();
   const nav = useNavigate();
+  const { pathname } = useLocation();
   const barStyle = {
     display: "flex",
     alignItems: "center",
@@ -18,6 +21,7 @@ export function AppHeader() {
     paddingInline: 24,
   };
   if (!token) {
+    const onLoginPage = pathname === "/login";
     return (
       <Layout.Header style={barStyle}>
         <Typography.Title level={4} style={{ margin: 0 }}>
@@ -26,8 +30,8 @@ export function AppHeader() {
           </Link>
         </Typography.Title>
         <div style={{ flex: 1 }} />
-        <Button type="primary" onClick={() => nav("/login")}>
-          Log in
+        <Button type="primary" onClick={() => nav(onLoginPage ? "/register" : "/login")}>
+          {onLoginPage ? "Sign up" : "Log in"}
         </Button>
       </Layout.Header>
     );
