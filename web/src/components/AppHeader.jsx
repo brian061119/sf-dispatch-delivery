@@ -41,7 +41,7 @@ export function AppHeader() {
         <Button type="primary" onClick={() => nav('/order/new')}>
           + Create a new delivery
         </Button>
-        <span>{username}</span>
+        <span>{username ?? 'dev-user'}</span>
         <Button onClick={() => {
             logout();
             nav('/login');

@@ -1,6 +1,7 @@
 import { Layout } from 'antd';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppHeader } from './components/AppHeader';
+import { isAuthed } from './lib/auth';
 import Dashboard from './pages/Dashboard';
 import GuestTrack from './pages/GuestTrack';
 import Login from './pages/Login';
@@ -10,13 +11,13 @@ import OrderWizard from './pages/OrderWizard';
 import Register from './pages/Register';
 import Tracking from './pages/Tracking';
 function RequireAuth({ children }) {
-    // TEMP while Login/Register are placeholders: let every route render so all
-    // page URLs stay directly accessible. Restore the isAuthed() check (and the
-    // redirect to /login) when Ziyuan's real Login lands.
-    // When restored, keep these routes PUBLIC (outside this guard):
-    //   /login, /register, /track, /tracking/:orderId  (guest order lookup —
-    //   the order number itself is the credential, like a FedEx tracking no.)
-    return <>{children}</>;
+    // social-ai style: the frontend trusts token PRESENCE (any string counts) —
+    // the backend is the one that validates it on real API calls. During the demo
+    // phase (Login/Register still stubs) you can "log in" manually: DevTools →
+    // Application → Local Storage → set  wd_token = anything  → refresh.
+    // PUBLIC routes (never guarded): /login, /register, /track, /tracking/:orderId
+    // (guest order lookup — the order number itself is the credential).
+    return isAuthed() ? <>{children}</> : <Navigate to="/login" replace/>;
 }
 export default function App() {
     return (<Layout style={{ minHeight: '100vh' }}>

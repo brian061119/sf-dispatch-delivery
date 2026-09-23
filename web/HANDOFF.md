@@ -21,9 +21,10 @@ VITE_MOCK=1 npm run dev          # mock mode, no backend needed (PowerShell: $en
 - Mock mode: `src/api/mock.js` serves contract-shaped fake data (seed orders /
   candidates / drifting courier position); the switch is the first line of every
   function in `api/*.js` — zero business-code changes for integration.
-- The auth guard in `App.jsx` is temporarily a pass-through so every URL opens
-  directly — **restore the `isAuthed()` check when Ziyuan's Login lands**, keeping
-  `/login` `/register` `/track` `/tracking/:orderId` public.
+- Auth guard is ON: any `wd_token` in localStorage counts as logged in (the backend
+  validates for real). **Demo shortcut while Login is a stub: DevTools → Application →
+  Local Storage → set `wd_token` = anything → refresh.** Public routes that must never
+  be guarded: `/login` `/register` `/track` `/tracking/:orderId`.
 
 ## 2. Your task card
 
