@@ -27,26 +27,33 @@ Change it with `VITE_API_PROXY_TARGET=http://<backend-host:port> npm run dev`.
 | `src/types/api.js` | Full API contract (JSDoc @typedef, mirrors api-contract.md) — changes must be synced with the whole team + backend |
 | `src/lib/http.js`  | axios instance: baseURL + JWT interceptor + 401 → login redirect                                                   |
 | `src/lib/auth.js`  | token storage (localStorage)                                                                                       |
-| `src/api/*`        | API functions grouped by contract area (see table below)                                                           |
+| `src/lib/brand.js` | `BRAND_NAME` — single source of truth for the UI brand text                                                         |
+| `src/api/*`        | API functions grouped by contract area (+ `mock.js` for mock mode)                                                  |
 | `src/store/*`      | Zustand: `auth` / `wizard` / `orders`                                                                              |
 | `src/components/*` | Design-system shared components                                                                                    |
-| `src/pages/*`      | 7 minimal text stubs, one per owner — owners replace them with real pages                                          |
+| `src/pages/*`      | 8 minimal text stubs, one per owner — owners replace them with real pages                                          |
 
 ## Shared components cheat sheet
 
-| Component                                     | Purpose                                                                |
-| --------------------------------------------- | ---------------------------------------------------------------------- |
-| `<AppHeader/>`                                | Top bar (logo / Dashboard / Orders / New / logout), mounted in App.jsx |
-| `<OrderCard order mini/>`                     | Order card (reused by Dashboard / History)                             |
-| `<StatusBadge status/>`                       | Colored status tag (contract 4-state)                                  |
-| `<StatusTimeline status/>`                    | 3-step progress bar + CANCELLED special case (Tracking)                |
-| `<VehicleIcon vehicle/>`                      | ROBOT/DRONE icon (wizard candidate cards)                              |
-| `<MapView pickup destination vehicle route/>` | Shared Leaflet map (Zihang's picker and Yuning's tracking both use it) |
+| Component                                     | Purpose                                                                                |
+| --------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `<AppHeader/>`                                | Top bar on every route; two variants by auth state (guest: brand + Log in / authed: full nav) |
+| `<OrderCard order mini/>`                     | Order card (reused by Dashboard / History)                                             |
+| `<StatusBadge status/>`                       | Colored status tag (contract 4-state)                                                  |
+| `<StatusTimeline status/>`                    | 3-step progress bar + CANCELLED special case (Tracking)                                |
+| `<VehicleIcon vehicle/>`                      | ROBOT/DRONE icon (wizard candidate cards)                                              |
+| `<MapView pickup destination vehicle route/>` | Shared Leaflet map (Zihang's picker and Yuning's tracking both use it)                 |
+
+## Routes
+
+Public: `/login` `/register` `/track` `/tracking/:orderId` (guest order lookup, no login).
+Behind auth: `/dashboard` `/orders` `/order/new` `/order/:orderId`.
+(The guard in `App.jsx` is temporarily a pass-through until the real Login lands.)
 
 ## Theming
 
 All antd colors/radii live in `src/theme.js`. Change `colorPrimary` once to re-skin the
-whole app (the wireframe's black buttons can be tuned here).
+whole app.
 
 ## Renaming the product
 
