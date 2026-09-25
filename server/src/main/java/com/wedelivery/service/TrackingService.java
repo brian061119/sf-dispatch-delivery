@@ -14,6 +14,7 @@ import com.wedelivery.repository.TrackingEventRepository;
 import com.wedelivery.repository.VehicleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +23,7 @@ import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -48,23 +50,23 @@ public class TrackingService {
 
         String vehicleCode = vehicle != null ? vehicle.getVehicleCode() : "N/A";
 
-        // 若订单尚未付款
+        // Order hasn't started moving yet (unpaid or cancelled)
         if (order.getStatus() == OrderStatus.PENDING_PAYMENT || order.getStatus() == OrderStatus.CANCELLED) {
             return buildStaticResponse(order, station, vehicleCode);
         }
 
-        // 计算物理时间推进比例
+        // Compute elapsed-time progress ratio
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime startTime = order.getScheduledStartTime();
         LocalDateTime deliveryTime = order.getEstimatedDeliveryTime();
 
-        // 默认全流程总时间 (若未设定则按 15 分钟模拟)
+        // Total trip duration, floored at 60s to guard against divide-by-zero
         long totalSeconds = Math.max(60, Duration.between(startTime, deliveryTime).getSeconds());
         long elapsedSeconds = Math.max(0, Duration.between(startTime, now).getSeconds());
 
         double overallRatio = Math.min(1.0, (double) elapsedSeconds / totalSeconds);
 
-        // 航段点定义
+        // Define waypoint coordinates
         BigDecimal sLat = station.getLatitude();
         BigDecimal sLng = station.getLongitude();
         BigDecimal pLat = Boolean.TRUE.equals(order.getIsStationPickup()) ? sLat : order.getPickupLat();
@@ -78,44 +80,40 @@ public class TrackingService {
         BigDecimal currentLng;
         OrderStatus newOrderStatus = order.getStatus();
 
-        // 划分 3 个航段权重：
+        // Split the trip into 3 weighted legs:
         // 0.0 ~ 0.25: Station -> Pickup (TO_PICKUP)
         // 0.25 ~ 0.75: Pickup -> Dropoff (TO_DROPOFF)
         // 0.75 ~ 1.00: Dropoff -> Station (RETURNING)
         // >= 1.00: COMPLETED
         if (overallRatio < 0.25) {
             currentStage = TrackingStage.TO_PICKUP;
-            stageDesc = "载具正在前往取件地点中";
+            stageDesc = "Vehicle is en route to the pickup location";
             newOrderStatus = OrderStatus.PICKING_UP;
             double t = overallRatio / 0.25;
             currentLat = interpolate(sLat, pLat, t);
             currentLng = interpolate(sLng, pLng, t);
-            recordMilestoneIfAbsent(order.getId(), TrackingStage.TO_PICKUP, "载具已出发，正平稳航向取件地", currentLat, currentLng);
         } else if (overallRatio < 0.75) {
             currentStage = TrackingStage.TO_DROPOFF;
-            stageDesc = "包裹已成功揽件，正在飞速配送至目的地";
+            stageDesc = "Package picked up successfully, speeding to the destination";
             newOrderStatus = OrderStatus.IN_TRANSIT;
             double t = (overallRatio - 0.25) / 0.50;
             currentLat = interpolate(pLat, dLat, t);
             currentLng = interpolate(pLng, dLng, t);
-            recordMilestoneIfAbsent(order.getId(), TrackingStage.TO_DROPOFF, "已完成取件，正在送往收件地址", currentLat, currentLng);
         } else if (overallRatio < 1.00) {
             currentStage = TrackingStage.RETURNING;
-            stageDesc = "包裹已送达！载具正在返航回站点充电机舱";
+            stageDesc = "Package delivered! Vehicle is returning to the station's charging bay";
             newOrderStatus = OrderStatus.DELIVERED;
             double t = (overallRatio - 0.75) / 0.25;
             currentLat = interpolate(dLat, sLat, t);
             currentLng = interpolate(dLng, sLng, t);
-            recordMilestoneIfAbsent(order.getId(), TrackingStage.RETURNING, "收件人已确认签收，载具返航中", dLat, dLng);
         } else {
             currentStage = TrackingStage.COMPLETED;
-            stageDesc = "配送全生命周期圆满完成，载具已停泊充电。";
+            stageDesc = "Delivery lifecycle complete, vehicle docked and charging.";
             newOrderStatus = OrderStatus.DELIVERED;
             currentLat = sLat;
             currentLng = sLng;
-            recordMilestoneIfAbsent(order.getId(), TrackingStage.COMPLETED, "载具已安全返回分配中心泊位", sLat, sLng);
 
-            // 更新载具状态为 IDLE / CHARGING
+            // Update vehicle status back to IDLE / CHARGING
             if (vehicle != null && vehicle.getStatus() == VehicleStatus.BUSY) {
                 vehicle.setStatus(VehicleStatus.IDLE);
                 vehicleRepository.save(vehicle);
@@ -125,7 +123,13 @@ public class TrackingService {
             }
         }
 
-        // 状态落库更新
+        // Backfill any stage(s) skipped between polls, then record the current one.
+        // Each stage is recorded at its own fixed boundary point rather than the
+        // live-interpolated position, so a backfilled entry looks identical to one
+        // recorded live.
+        ensureMilestonesRecorded(order.getId(), currentStage, sLat, sLng, pLat, pLng, dLat, dLng);
+
+        // Persist the updated status
         if (order.getStatus() != newOrderStatus) {
             order.setStatus(newOrderStatus);
             orderRepository.save(order);
@@ -161,19 +165,50 @@ public class TrackingService {
                 .build();
     }
 
-    private void recordMilestoneIfAbsent(Long orderId, TrackingStage stage, String desc, BigDecimal lat, BigDecimal lng) {
-        List<TrackingEvent> events = trackingEventRepository.findByOrderIdOrderByEventTimeAsc(orderId);
-        boolean exists = events.stream().anyMatch(e -> e.getStage() == stage);
-        if (!exists) {
-            TrackingEvent event = TrackingEvent.builder()
-                    .orderId(orderId)
-                    .stage(stage)
-                    .statusDescription(desc)
-                    .eventLat(lat)
-                    .eventLng(lng)
-                    .eventTime(LocalDateTime.now())
-                    .build();
-            trackingEventRepository.save(event);
+    // Walks every stage from TO_PICKUP up to currentStage (inclusive) and records
+    // whichever ones are still missing. On a normally-paced poll this only ever
+    // finds the single newest stage missing; if polling was sparse enough to skip
+    // past one or more stages entirely, this is what backfills them so the
+    // milestone history has no gaps regardless of how often the client checked in.
+    private void ensureMilestonesRecorded(Long orderId, TrackingStage currentStage,
+                                           BigDecimal sLat, BigDecimal sLng,
+                                           BigDecimal pLat, BigDecimal pLng,
+                                           BigDecimal dLat, BigDecimal dLng) {
+        List<TrackingEvent> recorded = trackingEventRepository.findByOrderIdOrderByEventTimeAsc(orderId);
+        Set<TrackingStage> recordedStages = recorded.stream()
+                .map(TrackingEvent::getStage)
+                .collect(Collectors.toSet());
+
+        if (currentStage.ordinal() >= TrackingStage.TO_PICKUP.ordinal() && !recordedStages.contains(TrackingStage.TO_PICKUP)) {
+            recordMilestone(orderId, TrackingStage.TO_PICKUP, "Vehicle has departed and is steadily heading to the pickup point", sLat, sLng);
+        }
+        if (currentStage.ordinal() >= TrackingStage.TO_DROPOFF.ordinal() && !recordedStages.contains(TrackingStage.TO_DROPOFF)) {
+            recordMilestone(orderId, TrackingStage.TO_DROPOFF, "Pickup complete, en route to the delivery address", pLat, pLng);
+        }
+        if (currentStage.ordinal() >= TrackingStage.RETURNING.ordinal() && !recordedStages.contains(TrackingStage.RETURNING)) {
+            recordMilestone(orderId, TrackingStage.RETURNING, "Recipient confirmed receipt, vehicle is returning", dLat, dLng);
+        }
+        if (currentStage.ordinal() >= TrackingStage.COMPLETED.ordinal() && !recordedStages.contains(TrackingStage.COMPLETED)) {
+            recordMilestone(orderId, TrackingStage.COMPLETED, "Vehicle has safely returned to its station bay", sLat, sLng);
+        }
+    }
+
+    private void recordMilestone(Long orderId, TrackingStage stage, String desc, BigDecimal lat, BigDecimal lng) {
+        TrackingEvent event = TrackingEvent.builder()
+                .orderId(orderId)
+                .stage(stage)
+                .statusDescription(desc)
+                .eventLat(lat)
+                .eventLng(lng)
+                .eventTime(LocalDateTime.now())
+                .build();
+        try {
+            // Flush immediately so a concurrent insert of the same (orderId, stage)
+            // trips the DB unique constraint right here instead of at the enclosing
+            // transaction's commit, where it would be too late to catch cleanly.
+            trackingEventRepository.saveAndFlush(event);
+        } catch (DataIntegrityViolationException ex) {
+            log.debug("Milestone for order {} stage {} was already recorded by a concurrent request", orderId, stage);
         }
     }
 
@@ -191,7 +226,7 @@ public class TrackingService {
                 .vehicleType(order.getVehicleType())
                 .vehicleCode(vehicleCode)
                 .currentStage(TrackingStage.TO_PICKUP)
-                .currentStageDescription("订单尚未支付或已取消")
+                .currentStageDescription("Order not paid yet or has been cancelled")
                 .currentLat(station.getLatitude())
                 .currentLng(station.getLongitude())
                 .progressPercent(BigDecimal.ZERO)
