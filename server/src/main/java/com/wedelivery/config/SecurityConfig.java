@@ -44,6 +44,7 @@ public class SecurityConfig {
                         "/api/auth/**",
                         "/api/dispatch/**",
                         "/api/tracking/**",
+                        "/api/orders/*/tracking",
                         "/h2-console/**",
                         "/favicon.ico"
                 ).permitAll()
