@@ -37,7 +37,7 @@ public class MockPaymentServiceImpl implements PaymentService {
                     .paidAt(LocalDateTime.now())
                     .build();
             paymentRepository.save(failedPayment);
-            throw new RuntimeException("Payment Failed: Card ending with 0000 has insufficient funds.");
+            throw new com.wedelivery.exception.PaymentDeclinedException("Payment Failed: Card ending with 0000 has insufficient funds.");
         }
 
         String transactionNo = "TXN-MOCK-" + UUID.randomUUID().toString().substring(0, 10).toUpperCase();
