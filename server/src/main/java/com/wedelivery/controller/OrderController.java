@@ -5,7 +5,6 @@ import com.wedelivery.dto.OrderCreateResponse;
 import com.wedelivery.entity.Order;
 import com.wedelivery.entity.User;
 import com.wedelivery.entity.enums.OrderStatus;
-import com.wedelivery.entity.enums.Role;
 import com.wedelivery.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -15,7 +14,9 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -26,19 +27,16 @@ public class OrderController {
     private final OrderService orderService;
 
     /**
-     * API Contract: POST /api/orders
-     * Accepts candidateId and route specs, performs server-side price validation,
-     * atomically locks vehicle, processes mock payment, and creates order.
+     * API Contract: POST /api/orders (Create order and lock vehicle)
      */
     @PostMapping
-    public ResponseEntity<OrderCreateResponse> createOrderContract(
+    public ResponseEntity<OrderCreateResponse> createOrder(
             @Valid @RequestBody OrderCreateRequest request,
             @AuthenticationPrincipal User currentUser
     ) {
         if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-
         OrderCreateResponse response = orderService.createOrder(request, currentUser);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -57,6 +55,7 @@ public class OrderController {
         List<Map<String, Object>> orderList = orders.stream().map(o -> {
             Map<String, Object> m = new HashMap<>();
             m.put("orderId", o.getOrderNumber());
+            m.put("trackingCode", o.getTrackingCode());
 
             // External contract status mapping: PENDING | IN_TRANSIT | DELIVERED | CANCELLED
             String contractStatus;
@@ -86,41 +85,11 @@ public class OrderController {
      * API Contract: GET /api/orders/:orderId (Get order detail)
      */
     @GetMapping("/{orderNumber}")
-    public ResponseEntity<Map<String, Object>> getOrder(
+    public ResponseEntity<Order> getOrder(
             @PathVariable String orderNumber,
             @AuthenticationPrincipal User currentUser
     ) {
-        Order order = orderService.getOrderByNumber(orderNumber);
-
-        // Authorization check: only order owner or ADMIN allowed
-        if (currentUser != null && currentUser.getRole() != Role.ADMIN && !order.getUserId().equals(currentUser.getId())) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
-
-        Map<String, Object> map = new HashMap<>();
-        map.put("orderId", order.getOrderNumber());
-        map.put("status", order.getStatus().name());
-        map.put("planType", order.getPlanType().name());
-        map.put("vehicleType", order.getVehicleType().name());
-        map.put("stationId", order.getStationId());
-        map.put("pickupAddress", order.getPickupAddress());
-        map.put("pickupLat", order.getPickupLat());
-        map.put("pickupLng", order.getPickupLng());
-        map.put("dropoffAddress", order.getDropoffAddress());
-        map.put("dropoffLat", order.getDropoffLat());
-        map.put("dropoffLng", order.getDropoffLng());
-        map.put("packageWeight", order.getPackageWeight());
-        map.put("packageVolume", order.getPackageVolume());
-        map.put("totalDistance", order.getTotalDistance());
-        map.put("originPrice", order.getOriginPrice());
-        map.put("discountAmount", order.getDiscountAmount());
-        map.put("finalPrice", order.getFinalPrice());
-        map.put("scheduledStartTime", order.getScheduledStartTime());
-        map.put("estimatedDeliveryTime", order.getEstimatedDeliveryTime());
-        map.put("actualDeliveryTime", order.getActualDeliveryTime());
-        map.put("createdAt", order.getCreatedAt());
-
-        return ResponseEntity.ok(map);
+        return ResponseEntity.ok(orderService.getAccessibleOrder(orderNumber, currentUser));
     }
 
     /**

@@ -14,8 +14,8 @@ import java.math.BigDecimal;
 @Builder
 public class Station {
 
+    /** 站点编号即主键，由导入方与种子数据显式指定；不要改回 IDENTITY —— 那会丢弃赋入的编号，并让重复导入不断新增行 */
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(nullable = false, length = 100)

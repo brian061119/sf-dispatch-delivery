@@ -7,16 +7,18 @@ import com.wedelivery.entity.enums.PlanType;
 import com.wedelivery.entity.enums.Role;
 import com.wedelivery.entity.enums.TrackingStage;
 import com.wedelivery.entity.enums.VehicleStatus;
-import com.wedelivery.entity.enums.VehicleType;
 import com.wedelivery.exception.NoVehicleAvailableException;
+import com.wedelivery.exception.ResourceNotFoundException;
 import com.wedelivery.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -34,13 +36,18 @@ public class OrderService {
     private final TrackingEventRepository trackingEventRepository;
     private final RecommendationService recommendationService;
 
+    // Tracking code alphabet: excludes ambiguous 0/O, 1/I (32 characters; 16 chars ≈ 80 bits entropy)
+    private static final String TRACKING_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    private static final int TRACKING_CODE_LENGTH = 16;
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
     /**
      * Core contract order creation:
      * 1. Dynamically recalculate plan (server-side price validation to prevent tampering)
      * 2. Atomically lock vehicle via pessimistic lock
      * 3. Persist order entity (PENDING_PAYMENT)
      * 4. Process mock payment (triggers rollback if card ends with 0000)
-     * 5. Transition vehicle to BUSY and order to PAID upon payment success
+     * 5. Transition vehicle to IN_DELIVERY and update real-time telemetry upon payment success
      * 6. Record initial tracking milestone event (TO_PICKUP)
      */
     @Transactional(rollbackFor = Exception.class)
@@ -54,10 +61,10 @@ public class OrderService {
         RecommendationContractDto.PackageDto pkg = req.getEffectivePackage();
 
         if (pickup == null || pickup.getLat() == null || pickup.getLng() == null) {
-            log.warn("⚠️ Pickup coordinates missing from request, falling back to Downtown SF default for demo resilience.");
+            log.warn("Pickup coordinates missing from request, falling back to Downtown SF default for demo resilience.");
         }
         if (dropoff == null || dropoff.getLat() == null || dropoff.getLng() == null) {
-            log.warn("⚠️ Dropoff coordinates missing from request, falling back to Mission SF default for demo resilience.");
+            log.warn("Dropoff coordinates missing from request, falling back to Mission SF default for demo resilience.");
         }
 
         BigDecimal pLat = (pickup != null && pickup.getLat() != null) ? pickup.getLat() : new BigDecimal("37.7858");
@@ -129,12 +136,14 @@ public class OrderService {
         Vehicle lockedVehicle = availableVehicles.get(0);
         log.info("Locked vehicle: {} (ID: {})", lockedVehicle.getVehicleCode(), lockedVehicle.getId());
 
-        // 5. Generate unique system order number
+        // 5. Generate unique system order number and secure tracking code
         String orderNumber = "SFORD" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
                 + String.format("%03d", ThreadLocalRandom.current().nextInt(1000));
+        String trackingCode = generateTrackingCode();
 
         Order order = Order.builder()
                 .orderNumber(orderNumber)
+                .trackingCode(trackingCode)
                 .userId(currentUser.getId())
                 .stationId(matchedPlan.getStationId())
                 .vehicleId(lockedVehicle.getId())
@@ -160,13 +169,13 @@ public class OrderService {
 
         order = orderRepository.save(order);
 
-        // 6. Strictly extract and validate payment credential
+        // 6. Extract payment credential (supports mock fallback for testing)
         String cardIdentifier = req.getPaymentMethodId() != null && !req.getPaymentMethodId().isBlank()
                 ? req.getPaymentMethodId()
                 : req.getCardNumber();
 
         if (cardIdentifier == null || cardIdentifier.isBlank()) {
-            throw new IllegalArgumentException("Payment method or card number is required to complete checkout.");
+            cardIdentifier = "pm_mock_card";
         }
 
         Payment payment = paymentService.processPayment(
@@ -176,15 +185,24 @@ public class OrderService {
                 cardIdentifier
         );
 
-        // 7. Payment succeeded: update vehicle to BUSY and order to PAID
-        lockedVehicle.setStatus(VehicleStatus.BUSY);
+        // 7. Payment succeeded: update vehicle to IN_DELIVERY and synchronize realtime machine state
+        Station station = stationRepository.findById(matchedPlan.getStationId()).orElse(null);
+        LocalDateTime now = LocalDateTime.now();
+
+        lockedVehicle.setStatus(VehicleStatus.IN_DELIVERY);
+        lockedVehicle.setStatusUpdatedAt(now);
+        lockedVehicle.setLocationCode(Vehicle.LOCATION_NOT_AT_STATION);
+        lockedVehicle.setCurrentSpeed(lockedVehicle.getCruiseSpeed());
+        lockedVehicle.setSpeedUpdatedAt(now);
+        lockedVehicle.setCurrentLat(station != null ? station.getLatitude() : pLat);
+        lockedVehicle.setCurrentLng(station != null ? station.getLongitude() : pLng);
+        lockedVehicle.setPositionUpdatedAt(now);
         vehicleRepository.save(lockedVehicle);
 
         order.setStatus(OrderStatus.PAID);
         orderRepository.save(order);
 
         // 8. Record initial tracking milestone event
-        Station station = stationRepository.findById(matchedPlan.getStationId()).orElse(null);
         BigDecimal initialLat = station != null ? station.getLatitude() : pLat;
         BigDecimal initialLng = station != null ? station.getLongitude() : pLng;
 
@@ -194,12 +212,13 @@ public class OrderService {
                 .statusDescription("Payment succeeded. Dispatched " + lockedVehicle.getVehicleCode() + ", en route to pickup location.")
                 .eventLat(initialLat)
                 .eventLng(initialLng)
-                .eventTime(LocalDateTime.now())
+                .eventTime(now)
                 .build();
         trackingEventRepository.save(initialEvent);
 
         return OrderCreateResponse.builder()
                 .orderId(order.getOrderNumber())
+                .trackingCode(order.getTrackingCode())
                 .status("PENDING")
                 .estimatedTimeMinutes(matchedPlan.getEstimatedMinutes())
                 .estimatedCost(order.getFinalPrice())
@@ -211,7 +230,7 @@ public class OrderService {
 
     /**
      * Delivery confirmation business closure:
-     * 1. Verify user authorization
+     * 1. Verify user authorization (only customer who placed order or ADMIN)
      * 2. Update order status to DELIVERED and record actual delivery time
      * 3. Release assigned vehicle back to IDLE
      * 4. Record delivery completion tracking milestone
@@ -221,7 +240,7 @@ public class OrderService {
         Order order = getOrderByNumber(orderNumber);
 
         if (currentUser != null && currentUser.getRole() != Role.ADMIN && !order.getUserId().equals(currentUser.getId())) {
-            throw new IllegalArgumentException("You are not authorized to confirm receipt for this order.");
+            throw new AccessDeniedException("Only the customer who placed order " + orderNumber + " can confirm receipt");
         }
 
         if (order.getStatus() == OrderStatus.DELIVERED) {
@@ -229,14 +248,20 @@ public class OrderService {
         }
 
         order.setStatus(OrderStatus.DELIVERED);
-        order.setActualDeliveryTime(LocalDateTime.now());
+        if (order.getActualDeliveryTime() == null) {
+            order.setActualDeliveryTime(LocalDateTime.now());
+        }
         orderRepository.save(order);
 
         // Release vehicle back to IDLE state
         if (order.getVehicleId() != null) {
             vehicleRepository.findById(order.getVehicleId()).ifPresent(v -> {
-                if (v.getStatus() == VehicleStatus.BUSY) {
+                if (v.getStatus() == VehicleStatus.IN_DELIVERY) {
+                    LocalDateTime now = LocalDateTime.now();
                     v.setStatus(VehicleStatus.IDLE);
+                    v.setStatusUpdatedAt(now);
+                    v.setCurrentSpeed(BigDecimal.ZERO);
+                    v.setSpeedUpdatedAt(now);
                     vehicleRepository.save(v);
                     log.info("Vehicle {} successfully released back to IDLE upon order {} delivery.",
                             v.getVehicleCode(), order.getOrderNumber());
@@ -258,13 +283,41 @@ public class OrderService {
         return order;
     }
 
-
     public Order getOrderByNumber(String orderNumber) {
         return orderRepository.findByOrderNumber(orderNumber)
-                .orElseThrow(() -> new IllegalArgumentException("Order not found with number: " + orderNumber));
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderNumber));
+    }
+
+    /**
+     * Query order and verify access permission: only order owner or admin can view.
+     * Throws AccessDeniedException if not authorized (mapped to 403 by GlobalExceptionHandler).
+     */
+    public Order getAccessibleOrder(String orderNumber, User currentUser) {
+        Order order = getOrderByNumber(orderNumber);
+        if (currentUser == null) {
+            throw new AccessDeniedException("Authentication required to access order.");
+        }
+        boolean isOwner = order.getUserId().equals(currentUser.getId());
+        boolean isAdmin = currentUser.getRole() == Role.ADMIN;
+        if (!isOwner && !isAdmin) {
+            throw new AccessDeniedException("You do not have access to order " + orderNumber);
+        }
+        return order;
     }
 
     public List<Order> getUserOrders(Long userId) {
         return orderRepository.findByUserIdOrderByCreatedAtDesc(userId);
+    }
+
+    private String generateTrackingCode() {
+        String code;
+        do {
+            StringBuilder sb = new StringBuilder(TRACKING_CODE_LENGTH);
+            for (int i = 0; i < TRACKING_CODE_LENGTH; i++) {
+                sb.append(TRACKING_CODE_ALPHABET.charAt(SECURE_RANDOM.nextInt(TRACKING_CODE_ALPHABET.length())));
+            }
+            code = sb.toString();
+        } while (orderRepository.existsByTrackingCode(code));
+        return code;
     }
 }

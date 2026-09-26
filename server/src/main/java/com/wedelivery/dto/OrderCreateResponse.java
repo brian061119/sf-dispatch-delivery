@@ -13,6 +13,7 @@ import java.math.BigDecimal;
 @Builder
 public class OrderCreateResponse {
     private String orderId;
+    private String trackingCode;
     private String status;
     private Integer estimatedTimeMinutes;
     private BigDecimal estimatedCost;

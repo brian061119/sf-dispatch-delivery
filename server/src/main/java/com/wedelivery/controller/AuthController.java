@@ -29,10 +29,16 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<User> getCurrentUser(@AuthenticationPrincipal User user) {
+    public ResponseEntity<AuthResponse.UserDto> getCurrentUser(@AuthenticationPrincipal User user) {
         if (user == null) {
             return ResponseEntity.status(401).build();
         }
-        return ResponseEntity.ok(user);
+        // 返回与登录响应中 user 相同的结构，不暴露 passwordHash 等敏感字段
+        return ResponseEntity.ok(AuthResponse.UserDto.builder()
+                .id(String.valueOf(user.getId()))
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .role(user.getRole().name())
+                .build());
     }
 }

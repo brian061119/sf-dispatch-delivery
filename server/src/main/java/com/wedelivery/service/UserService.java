@@ -4,13 +4,14 @@ import com.wedelivery.dto.AuthRequest;
 import com.wedelivery.dto.AuthResponse;
 import com.wedelivery.entity.User;
 import com.wedelivery.entity.enums.Role;
+import com.wedelivery.exception.ResourceNotFoundException;
 import com.wedelivery.repository.UserRepository;
 import com.wedelivery.security.JwtUtils;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -22,10 +23,10 @@ public class UserService {
 
     public AuthResponse authenticate(AuthRequest request) {
         User user = userRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> new IllegalArgumentException("User not found: " + request.getUsername()));
+                .orElseThrow(() -> new BadCredentialsException("User not found: " + request.getUsername()));
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
-            throw new IllegalArgumentException("Invalid password.");
+            throw new BadCredentialsException("Invalid password.");
         }
 
         String token = jwtUtils.generateToken(user.getUsername(), user.getRole().name());
@@ -57,8 +58,8 @@ public class UserService {
             throw new IllegalArgumentException("Email already registered: " + request.getEmail());
         }
 
-        Role assignedRole = request.getRole() != null ? request.getRole() : Role.USER;
-        LocalDateTime vipExpire = assignedRole == Role.VIP ? LocalDateTime.now().plusYears(1) : null;
+        // 自助注册一律为普通用户，防止通过请求体自行提权为 ADMIN 或免费获得 VIP
+        Role assignedRole = Role.USER;
 
         User user = User.builder()
                 .username(request.getUsername())
@@ -67,7 +68,6 @@ public class UserService {
                 .firstName(request.getFirstName())
                 .lastName(request.getLastName())
                 .role(assignedRole)
-                .vipExpireAt(vipExpire)
                 .build();
 
         user = userRepository.save(user);
@@ -95,6 +95,6 @@ public class UserService {
 
     public User getUserByUsername(String username) {
         return userRepository.findByUsername(username)
-                .orElseThrow(() -> new IllegalArgumentException("User not found: " + username));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + username));
     }
 }

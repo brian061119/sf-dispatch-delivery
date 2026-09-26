@@ -5,6 +5,7 @@ import com.wedelivery.entity.Order;
 import com.wedelivery.entity.Station;
 import com.wedelivery.entity.TrackingEvent;
 import com.wedelivery.entity.Vehicle;
+import com.wedelivery.exception.ResourceNotFoundException;
 import com.wedelivery.entity.enums.OrderStatus;
 import com.wedelivery.entity.enums.TrackingStage;
 import com.wedelivery.entity.enums.VehicleStatus;
@@ -37,8 +38,18 @@ public class TrackingService {
     @Transactional
     public TrackingResponse trackOrder(String orderNumber) {
         Order order = orderRepository.findByOrderNumber(orderNumber)
-                .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderNumber));
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderNumber));
+        return track(order);
+    }
 
+    @Transactional
+    public TrackingResponse trackByTrackingCode(String trackingCode) {
+        Order order = orderRepository.findByTrackingCode(trackingCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Tracking code not found: " + trackingCode));
+        return track(order);
+    }
+
+    private TrackingResponse track(Order order) {
         Station station = stationRepository.findById(order.getStationId())
                 .orElseThrow(() -> new IllegalStateException("Station not found for order"));
 
@@ -115,18 +126,34 @@ public class TrackingService {
             currentLng = sLng;
             recordMilestoneIfAbsent(order.getId(), TrackingStage.COMPLETED, "载具已安全返回分配中心泊位", sLat, sLng);
 
-            // 更新载具状态为 IDLE / CHARGING
-            if (vehicle != null && vehicle.getStatus() == VehicleStatus.BUSY) {
-                vehicle.setStatus(VehicleStatus.IDLE);
-                vehicleRepository.save(vehicle);
-            }
             if (order.getActualDeliveryTime() == null) {
                 order.setActualDeliveryTime(now);
             }
         }
 
-        // 状态落库更新
-        if (order.getStatus() != newOrderStatus) {
+        // 同步机器实时信息：位置与速度随航段推进，返站后归位并恢复待命。
+        // 本方法即「机器实时信息 → 实时追踪系统」的接入口，追踪侧不必再自行推算载具坐标。
+        if (vehicle != null) {
+            boolean backAtStation = currentStage == TrackingStage.COMPLETED;
+            vehicle.setCurrentLat(currentLat);
+            vehicle.setCurrentLng(currentLng);
+            vehicle.setPositionUpdatedAt(now);
+            vehicle.setLocationCode(backAtStation ? station.getId().intValue() : Vehicle.LOCATION_NOT_AT_STATION);
+            if (backAtStation) {
+                vehicle.setCurrentSpeed(BigDecimal.ZERO);
+                if (vehicle.getStatus() == VehicleStatus.IN_DELIVERY) {
+                    vehicle.setStatus(VehicleStatus.IDLE);
+                    vehicle.setStatusUpdatedAt(now);
+                }
+            } else {
+                vehicle.setCurrentSpeed(vehicle.getCruiseSpeed());
+            }
+            vehicle.setSpeedUpdatedAt(now);
+            vehicleRepository.save(vehicle);
+        }
+
+        // 状态落库更新 (已签收的订单不再被模拟进度回退为 IN_TRANSIT 等状态)
+        if (order.getStatus() != newOrderStatus && order.getStatus() != OrderStatus.DELIVERED) {
             order.setStatus(newOrderStatus);
             orderRepository.save(order);
         }
