@@ -119,6 +119,10 @@ Response (201):
   "estimatedCost": "number"
 }
 ```
+**Pricing (backend-owned):** the frontend sends only `candidateId` plus the same `pickup` / `dropoff` / `package` it used for `POST /api/recommendations` — never a price. The backend recalculates the recommendation and creates the order from the matching candidate, so `estimatedCost` / `estimatedTimeMinutes` equal that candidate's `estimatedCost` / `estimatedTimeMinutes` (VIP and off-peak discounts included) and the order uses the candidate's station and vehicle type.
+
+Errors: `409` `{"message": "Selected plan <candidateId> is no longer available. Please refresh the recommendations."}` when the chosen candidate is no longer offered (e.g. its last vehicle was just booked) — re-fetch recommendations and let the user choose again. `409` is also returned when no idle vehicle can be locked at checkout.
+
 Still TBD: the exact error shape when payment fails (e.g. card declined) vs. when the order itself fails for another reason — the frontend needs to distinguish these to show the right message on the order confirmation page. Confirm with the Order module owner.
 
 ### GET /api/orders

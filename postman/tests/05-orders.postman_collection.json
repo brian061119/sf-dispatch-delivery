@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "WeDelivery 05 · Orders",
-    "description": "Create an order, order lists, order detail and ownership (owner / other customer / admin / no login). Cleanup confirms the order and returns the vehicle.\n\nHOW TO RUN: start the backend, then right-click the collection → Run collection → Run. It is self-contained (logs in by itself) and repeatable. baseUrl defaults to http://localhost:8080 (collection → Variables). Seeded accounts use password123.",
+    "description": "Create an order, order lists, order detail and ownership (owner / other customer / admin / no login). Checks that the charged price equals the recommended price. Cleanup confirms the order and returns the vehicle.\n\nHOW TO RUN: start the backend, then right-click the collection → Run collection → Run. It is self-contained (logs in by itself) and repeatable. baseUrl defaults to http://localhost:8080 (collection → Variables). Seeded accounts use password123.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -46,6 +46,14 @@
     },
     {
       "key": "drones2Before",
+      "value": ""
+    },
+    {
+      "key": "quotedCost",
+      "value": ""
+    },
+    {
+      "key": "quotedMinutes",
       "value": ""
     }
   ],
@@ -209,6 +217,63 @@
       "name": "Orders",
       "item": [
         {
+          "name": "Recommendation for this trip (save the quoted price)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/recommendations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "recommendations"
+              ]
+            },
+            "description": "The next request orders this exact plan; its price must match.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pickup\": {\n    \"line1\": \"Market St, San Francisco\",\n    \"city\": \"San Francisco\",\n    \"zip\": \"94103\",\n    \"lat\": 37.7858,\n    \"lng\": -122.4065\n  },\n  \"dropoff\": {\n    \"line1\": \"Mission St, San Francisco\",\n    \"city\": \"San Francisco\",\n    \"zip\": \"94110\",\n    \"lat\": 37.7596,\n    \"lng\": -122.4269\n  },\n  \"package\": {\n    \"description\": \"Documents\",\n    \"weightKg\": 1.5,\n    \"lengthCm\": 30,\n    \"widthCm\": 20,\n    \"heightCm\": 10,\n    \"fragile\": false\n  },\n  \"priority\": \"STANDARD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200 OK', () => pm.response.to.have.status(200));",
+                  "const c = pm.response.json().candidates.find(x => x.candidateId === 'CAND-BEST_VALUE');",
+                  "pm.test('best-value plan offered', () => pm.expect(c).to.exist);",
+                  "pm.collectionVariables.set('quotedCost', c.estimatedCost);",
+                  "pm.collectionVariables.set('quotedMinutes', c.estimatedTimeMinutes);"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Create order (owner)",
           "request": {
             "method": "POST",
@@ -259,8 +324,106 @@
                   "const b = pm.response.json();",
                   "pm.test('has orderId', () => pm.expect(b.orderId).to.match(/^SFORD/));",
                   "pm.test('16-char tracking code (no 0/O/1/I)', () => pm.expect(b.trackingCode).to.match(/^[A-HJ-NP-Z2-9]{16}$/));",
+                  "const quoted = pm.collectionVariables.get('quotedCost');",
+                  "if (quoted) { pm.test('charged price = recommended price', () => pm.expect(Number(b.estimatedCost)).to.eql(Number(quoted)));",
+                  "  pm.test('ETA = recommended ETA', () => pm.expect(Number(b.estimatedTimeMinutes)).to.eql(Number(pm.collectionVariables.get('quotedMinutes')))); }",
                   "pm.collectionVariables.set('orderId', b.orderId);",
                   "pm.collectionVariables.set('trackingCode', b.trackingCode);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Order detail: final price = recommended price",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{orderId}}"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('finalPrice matches quote', () => pm.expect(Number(pm.response.json().finalPrice)).to.eql(Number(pm.collectionVariables.get('quotedCost'))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Order an unavailable plan → 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"candidateId\": \"CAND-NO_SUCH_PLAN\",\n  \"pickup\": {\n    \"line1\": \"Market St, San Francisco\",\n    \"city\": \"San Francisco\",\n    \"zip\": \"94103\",\n    \"lat\": 37.7858,\n    \"lng\": -122.4065\n  },\n  \"dropoff\": {\n    \"line1\": \"Mission St, San Francisco\",\n    \"city\": \"San Francisco\",\n    \"zip\": \"94110\",\n    \"lat\": 37.7596,\n    \"lng\": -122.4269\n  },\n  \"package\": {\n    \"description\": \"Documents\",\n    \"weightKg\": 1.5,\n    \"lengthCm\": 30,\n    \"widthCm\": 20,\n    \"heightCm\": 10,\n    \"fragile\": false\n  },\n  \"priority\": \"STANDARD\",\n  \"paymentMethodId\": \"pm_mock\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409 Conflict', () => pm.response.to.have.status(409));",
+                  "pm.test('explains why', () => pm.expect(pm.response.json().message).to.include('no longer available'));"
                 ]
               }
             }

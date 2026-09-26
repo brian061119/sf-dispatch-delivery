@@ -47,6 +47,14 @@
     {
       "key": "drones2Before",
       "value": ""
+    },
+    {
+      "key": "quotedCost",
+      "value": ""
+    },
+    {
+      "key": "quotedMinutes",
+      "value": ""
     }
   ],
   "item": [
@@ -254,6 +262,9 @@
                   "const b = pm.response.json();",
                   "pm.test('has orderId', () => pm.expect(b.orderId).to.match(/^SFORD/));",
                   "pm.test('16-char tracking code (no 0/O/1/I)', () => pm.expect(b.trackingCode).to.match(/^[A-HJ-NP-Z2-9]{16}$/));",
+                  "const quoted = pm.collectionVariables.get('quotedCost');",
+                  "if (quoted) { pm.test('charged price = recommended price', () => pm.expect(Number(b.estimatedCost)).to.eql(Number(quoted)));",
+                  "  pm.test('ETA = recommended ETA', () => pm.expect(Number(b.estimatedTimeMinutes)).to.eql(Number(pm.collectionVariables.get('quotedMinutes')))); }",
                   "pm.collectionVariables.set('orderId', b.orderId);",
                   "pm.collectionVariables.set('trackingCode', b.trackingCode);"
                 ]

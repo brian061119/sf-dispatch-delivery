@@ -100,20 +100,12 @@ public class OrderService {
         }
 
         // 3. Match target plan type according to candidateId
-        String candId = req.getCandidateId().toUpperCase();
-        PlanType targetPlanType;
-        if (candId.contains("OFF_PEAK") || candId.contains("ECO")) {
-            targetPlanType = PlanType.OFF_PEAK;
-        } else if (candId.contains("FASTEST") || candId.contains("DRONE")) {
-            targetPlanType = PlanType.FASTEST;
-        } else {
-            targetPlanType = PlanType.BEST_VALUE;
-        }
-
+        String candId = req.getCandidateId() != null ? req.getCandidateId().trim() : "CAND-BEST_VALUE";
         PlanOptionDto matchedPlan = availablePlans.stream()
-                .filter(p -> p.getPlanType() == targetPlanType)
+                .filter(p -> ("CAND-" + p.getPlanType().name()).equalsIgnoreCase(candId))
                 .findFirst()
-                .orElse(availablePlans.get(0));
+                .orElseThrow(() -> new IllegalStateException(
+                        "Selected plan " + candId + " is no longer available. Please refresh the recommendations."));
 
         log.info("Matched plan: {} for station: {} (ID: {})",
                 matchedPlan.getPlanType(), matchedPlan.getStationName(), matchedPlan.getStationId());
