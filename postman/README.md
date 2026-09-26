@@ -12,7 +12,7 @@ Each file is **self-contained** (logs in by itself, creates the order it needs) 
 | `tests/02-signup` | Register, `role: ADMIN` ignored, duplicate username/email → 400, missing password → 400 | 7 / 12 |
 | `tests/03-stations-vehicles` | Public station & vehicle reads, unknown vehicle → 404 | 9 / 14 |
 | `tests/04-recommendations-quote` | Recommendations (login required), public quote | 4 / 6 |
-| `tests/05-orders` | Create order, order lists, order detail & ownership (owner / other customer / admin / no login) | 14 / 25 |
+| `tests/05-orders` | Charged price = recommended price, unavailable plan → 409, order lists, order detail & ownership (owner / other customer / admin / no login) | 17 / 33 |
 | `tests/06-tracking` | Owner tracking by order number, public tracking by tracking code | 15 / 24 |
 | `tests/07-confirm-receipt` | Only the owner can confirm; saved; not reverted by tracking | 13 / 24 |
 | `tests/08-admin-dashboard` | Admin 200, customer 403, no login 401 | 5 / 7 |
@@ -24,10 +24,10 @@ Files 05–07 create one order each; their *Cleanup* folder confirms it and runs
 
 | File | Use it for |
 |---|---|
-| `WeDelivery-Backend-Tests.postman_collection.json` | Every test above in one run (74 requests, 114 checks). Folder 0 must run first. |
+| `WeDelivery-Backend-Tests.postman_collection.json` | Every test above in one run (77 requests, 122 checks). Folder 0 must run first. |
 | `WeDelivery.postman_collection.json` | Quick manual walkthrough of the main flow (13 requests). |
 
 ## Notes
 
 - The tests hit whichever database the running backend uses. Signup creates real users and 05–07 create real orders: fine locally (H2 is wiped on restart), but with `SPRING_PROFILES_ACTIVE=aws` they stay in the shared AWS database.
-- If *Create order* returns **409**, station 1 has no idle robot — run `tests/09-dispatch-writes` (the tick frees delivered vehicles) or restart the local backend.
+- If *Create order* returns **409**, the chosen plan has no idle vehicle right now — run `tests/09-dispatch-writes` (the tick frees delivered vehicles) or restart the local backend.

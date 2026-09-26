@@ -191,7 +191,7 @@ The merged app was started once against RDS, which ran both migrations and added
 
 | Test | Result |
 |---|---|
-| JUnit tests (teammate's 40 + 16 new) | **56 / 56 pass** |
+| JUnit tests (teammate's 40 + 16 access control + 5 order pricing) | **61 / 61 pass** |
 | Postman collection via Newman (13 requests) | all succeed |
 | 61-point API checklist (signup, login, roles, ownership, tracking, confirm receipt, admin, errors) | **61 / 61** on H2 and on PostgreSQL |
 | PostgreSQL database in the same state as RDS before the merge | both migrations work, old vehicles backfilled, 61 / 61 |
@@ -201,10 +201,10 @@ The merged app was started once against RDS, which ran both migrations and added
 All collections are in `postman/` — see `postman/README.md` for the full list.
 
 - **`postman/tests/`** — one collection per area (`01-login`, `02-signup`, `03-stations-vehicles`, `04-recommendations-quote`, `05-orders`, `06-tracking`, `07-confirm-receipt`, `08-admin-dashboard`, `09-dispatch-writes`). Each is self-contained (logs in by itself, creates the order it needs) and repeatable (cleans up after itself).
-- **`WeDelivery-Backend-Tests.postman_collection.json`** — the same tests in one run: 74 requests, 114 automatic checks.
+- **`WeDelivery-Backend-Tests.postman_collection.json`** — the same tests in one run: 77 requests, 122 automatic checks.
 - **`WeDelivery.postman_collection.json`** — quick manual walkthrough of the main flow (13 requests).
 
-Verified with Newman: every per-area file passes on its own and twice in a row, all nine back-to-back, and the full suite twice (114/114). Each run of signup creates real users and 05–07 create real orders — fine locally (H2 is wiped on restart), but against the AWS database they stay.
+Verified with Newman: every per-area file passes on its own and twice in a row, all nine back-to-back, and the full suite twice (122/122). Each run of signup creates real users and 05–07 create real orders — fine locally (H2 is wiped on restart), but against the AWS database they stay.
 ---
 
 ## 9. API changes the frontend needs to know
@@ -228,3 +228,18 @@ Verified with Newman: every per-area file passes on its own and twice in a row, 
 - **Payment error format** is still TBD in `api-contract.md` (payment failures return 500).
 - **Error format** isn't documented in `api-contract.md` yet.
 - **Team workflow:** clone fresh or `git fetch && git reset --hard origin/main` before continuing; push via commits/branches rather than uploading a folder of changed files.
+
+---
+
+## 11. Update — order price matches the recommendation
+
+**Problem:** `POST /api/orders` ignored the plan the customer chose: it always used station 1, charged a fixed **$18.50** and returned a fixed 25-minute ETA. The unused legacy endpoint `POST /api/orders/checkout` accepted the price from the request body, so a client could order for any price.
+
+**Fix:**
+- `RecommendationService.resolveContractCandidate()` recalculates the recommendation on the server from the same request and returns the plan matching `candidateId`. The recommendation endpoint and order creation share the same calculation.
+- `POST /api/orders` uses that plan's station, vehicle type, distance, price (with VIP / off-peak discounts) and delivery times; the response's `estimatedCost` and `estimatedTimeMinutes` come from the plan.
+- A plan that is no longer available → **409** "Selected plan … is no longer available. Please refresh the recommendations."
+- `POST /api/orders/checkout` removed (not used by the frontend, tests or Postman).
+
+**Verified:** new `OrderPricingApiTest` (regular user, VIP discount, drone, pickup near station 3 → station 3, unknown plan → 409); all 61 JUnit tests pass; Postman `05-orders` now checks charged price = recommended price (122/122 in the full suite).
+

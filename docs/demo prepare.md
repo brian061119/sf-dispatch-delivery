@@ -8,7 +8,7 @@ State of the code: `main` on GitHub (backend + tests). The frontend is still on 
 
 ## 0. 30-second pitch
 
-> **SF Dispatch & Delivery** is a same-day delivery backend for San Francisco that dispatches **drones and ground robots** from three stations. A customer enters pickup, drop-off and package details. The system recommends delivery plans (fastest / best value / off-peak) based on the real vehicles available, locks a vehicle when the order is placed, and tracks it in real time. Anyone with the random tracking code can view it without logging in. It's a **Spring Boot REST API** on **PostgreSQL (AWS RDS)** with JWT authentication and role-based access. It's covered by **56 automated tests** and a **Postman suite with 114 checks**.
+> **SF Dispatch & Delivery** is a same-day delivery backend for San Francisco that dispatches **drones and ground robots** from three stations. A customer enters pickup, drop-off and package details. The system recommends delivery plans (fastest / best value / off-peak) based on the real vehicles available, locks a vehicle when the order is placed, and tracks it in real time. Anyone with the random tracking code can view it without logging in. It's a **Spring Boot REST API** on **PostgreSQL (AWS RDS)** with JWT authentication and role-based access. It's covered by **61 automated tests** and a **Postman suite with 122 checks**.
 
 ---
 
@@ -19,7 +19,7 @@ State of the code: `main` on GitHub (backend + tests). The frontend is still on 
 - [ ] **Add the venue's IP to AWS.** Open https://checkip.amazonaws.com on the demo laptop, then add it in RDS → security group → Inbound rules: **PostgreSQL / 5432 / `<IP>/32`**. *Without this the app can't reach the database, and the demo fails.*
 - [ ] Pull the latest `main` and restart the backend in IntelliJ with `SPRING_PROFILES_ACTIVE=aws`, then wait for `Started WeDeliveryApplication`.
 - [ ] In Postman, import `postman/tests/*.json` (9 collections) and check `baseUrl` = `http://localhost:8080`.
-- [ ] Rehearse once and run the full suite: 114/114 should pass.
+- [ ] Rehearse once and run the full suite: 122/122 should pass.
 - [ ] **Plan B:** if AWS or the Wi-Fi fails, remove `SPRING_PROFILES_ACTIVE=aws` and restart. The app runs on the local H2 database with the same demo data, and every step below still works.
 
 ### Live demo (about 10 minutes)
@@ -30,12 +30,12 @@ State of the code: `main` on GitHub (backend + tests). The frontend is still on 
 | 2 | Signup can't create admins | `02-signup` → *role=ADMIN is ignored* + next request | Role comes back `USER`; the admin dashboard answers 403 |
 | 3 | Stations & live vehicles | `03-stations-vehicles` → *Station 1 availability* | Counts come from real vehicle state, not hardcoded values |
 | 4 | Recommendations | `04-recommendations-quote` → *Get recommendations* | Fastest (drone) / best value (robot) / off-peak, with price and ETA |
-| 5 | Place an order | `05-orders` → *Create order* | Order ID + **random 16-character tracking code** |
+| 5 | Place an order | `05-orders` → *Recommendation…* then *Create order* | **Charged price = recommended price**; order ID + **random 16-character tracking code** |
 | 6 | Ownership | `05-orders` → *detail (other customer) → 403* | Customers can't see each other's orders; admins can |
 | 7 | Public tracking | `06-tracking` → *Public tracking by code (no login)* | No login needed; the guessable order number is rejected (404) |
 | 8 | Confirm receipt | `07-confirm-receipt` | Only the owner can confirm; admins are also refused (403) |
 | 9 | Dispatch / machines | `09-dispatch-writes` → *FAULT* → *availability* → *IDLE* | A vehicle reports a fault → the station has one fewer available drone → it recovers |
-| 10 | Finale | Full suite → *Run collection* | **114 green checks** in about 10 seconds |
+| 10 | Finale | Full suite → *Run collection* | **122 green checks** in about 10 seconds |
 
 ---
 
@@ -160,6 +160,7 @@ State of the code: `main` on GitHub (backend + tests). The frontend is still on 
 **Q: What happens when a customer places an order?**
 - **What:** One call, `POST /api/orders`: pick a vehicle, charge, create the order, start tracking.
 - **How:** In one database transaction:
+  0. Recalculate the recommendation on the server and take the chosen plan's station, vehicle type, price and times (the client never sends a price; see 10.1).
   1. Lock an idle vehicle that meets the requirements (battery ≥ 20%, payload, volume).
   2. Mock payment.
   3. Save the order with a random tracking code.
@@ -234,8 +235,8 @@ State of the code: `main` on GitHub (backend + tests). The frontend is still on 
 
 **Q: How do you know it works?**
 - **What:** Three layers:
-  1. **56 JUnit tests** (40 from the teammate + 16 access-control tests), using MockMvc against an in-memory database.
-  2. **Postman suite:** 74 requests, **114 automatic checks**, plus the same tests split into 9 per-area collections.
+  1. **61 JUnit tests** (40 from the teammate + 16 access-control + 5 order-pricing tests), using MockMvc against an in-memory database.
+  2. **Postman suite:** 77 requests, **122 automatic checks**, plus the same tests split into 9 per-area collections.
   3. **Manual checks against real PostgreSQL**, including a copy of the AWS database's earlier state, to test the migrations.
 - **Why:** Unit/integration tests catch regressions in code; Postman tests the real running HTTP API end to end, the same way the frontend uses it.
 - **How:** Run `mvn test` in `server/`. For Postman, *Run collection*, or the command-line runner `newman run postman/WeDelivery-Backend-Tests.postman_collection.json`. The Postman tests clean up after themselves, so they can be run repeatedly.
@@ -273,7 +274,6 @@ State of the code: `main` on GitHub (backend + tests). The frontend is still on 
 | Next step | Why |
 |---|---|
 | Merge the frontend branches | The guest tracking page must switch to `/api/tracking/{trackingCode}` |
-| Make `POST /api/orders` use the chosen plan's station and price (see 10.1) | The price charged should match the price shown |
 | Device keys for vehicle telemetry | Real machines shouldn't use an admin login |
 | Flyway for migrations | Versioned, auditable schema changes |
 | PostGIS nearest-vehicle queries | The main reason we chose PostgreSQL |
@@ -284,11 +284,11 @@ State of the code: `main` on GitHub (backend + tests). The frontend is still on 
 
 ## 10. Hard questions — know these answers
 
-**10.1 "The recommendation showed one price, but the order was charged $18.50. Why?"**
-- **Honest answer:** `POST /api/orders` currently ignores the chosen plan's details. It always uses **station 1**, a **fixed price of $18.50**, a fixed distance, a **fixed test card**, and a fixed 25-minute ETA in the response. `candidateId` only decides drone (contains `FASTEST`) vs robot.
-- **Why it's like this:** The contract endpoint was wired quickly to the older checkout code to unblock the frontend.
-- **Fix:** On order creation, recalculate the recommendation on the server for the chosen `candidateId` and charge that price. Never trust a price sent by the client.
-- **In the demo:** Don't compare the recommendation price with the order price, or mention it yourself as a known next step.
+**10.1 "Does the customer pay the price the recommendation showed? Can a client change the price?"**
+- **What:** Yes, the charged price always equals the recommended price. No, the client can't set it.
+- **Why:** Earlier, `POST /api/orders` ignored the chosen plan (always station 1, a fixed $18.50, fixed ETA), and an older `/api/orders/checkout` endpoint even accepted the price from the request body. Both were fixed before the demo.
+- **How:** On order creation the server **recalculates the recommendation** from the same pickup, drop-off and package, picks the plan with the chosen `candidateId`, and uses *its* station, vehicle type, distance, price (including VIP/off-peak discounts) and delivery times. If that plan is no longer available (e.g. the last vehicle was just booked), it returns **409** "Selected plan … is no longer available. Please refresh the recommendations." The unused `/checkout` endpoint was removed. Proven by 5 JUnit tests (regular, VIP, drone, station 3, unknown plan) and Postman checks.
+- **Known remaining gap:** the vehicle actually locked is the idle one with the most battery at that station, which may differ from the specific vehicle the recommendation evaluated. Price, station and type always match.
 
 **10.2 "Why are the database password and JWT secret in a public GitHub repo?"**
 - **Honest answer:** A team decision for convenience during development.
@@ -331,8 +331,8 @@ State of the code: `main` on GitHub (backend + tests). The frontend is still on 
 | Roles | USER, VIP, ADMIN |
 | Token lifetime | 24 hours |
 | Tracking code | 16 characters, ~10²⁴ combinations |
-| JUnit tests | 56 (40 teammate + 16 access control) |
-| Postman | 74 requests / 114 checks (full suite); 9 per-area collections |
+| JUnit tests | 61 (40 teammate + 16 access control + 5 order pricing) |
+| Postman | 77 requests / 122 checks (full suite); 9 per-area collections |
 | AWS | RDS PostgreSQL 16, us-east-2, free tier, IP allowlist + SSL |
 | Accidentally deleted files restored | 39 |
 | Merge conflicts resolved | 4 files |

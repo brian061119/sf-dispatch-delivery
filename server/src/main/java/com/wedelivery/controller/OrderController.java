@@ -2,19 +2,18 @@ package com.wedelivery.controller;
 
 import com.wedelivery.dto.CheckoutRequest;
 import com.wedelivery.dto.CheckoutResponse;
+import com.wedelivery.dto.PlanOptionDto;
+import com.wedelivery.dto.QuoteRequest;
 import com.wedelivery.entity.Order;
 import com.wedelivery.entity.User;
-import com.wedelivery.entity.enums.PlanType;
-import com.wedelivery.entity.enums.VehicleType;
 import com.wedelivery.service.OrderService;
+import com.wedelivery.service.RecommendationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import javax.validation.Valid;
-import java.math.BigDecimal;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -25,6 +24,7 @@ import java.util.stream.Collectors;
 public class OrderController {
 
     private final OrderService orderService;
+    private final RecommendationService recommendationService;
 
     // 契约路径: POST /api/orders
     @PostMapping
@@ -37,35 +37,35 @@ public class OrderController {
         }
 
         String candidateId = (String) body.getOrDefault("candidateId", "CAND-BEST_VALUE");
-        Map<String, Object> pickup = (Map<String, Object>) body.getOrDefault("pickup", Collections.emptyMap());
-        Map<String, Object> dropoff = (Map<String, Object>) body.getOrDefault("dropoff", Collections.emptyMap());
-        Map<String, Object> pkg = (Map<String, Object>) body.getOrDefault("package", Collections.emptyMap());
 
-        BigDecimal pLat = pickup.get("lat") != null ? new BigDecimal(pickup.get("lat").toString()) : new BigDecimal("37.7858");
-        BigDecimal pLng = pickup.get("lng") != null ? new BigDecimal(pickup.get("lng").toString()) : new BigDecimal("-122.4065");
-        BigDecimal dLat = dropoff.get("lat") != null ? new BigDecimal(dropoff.get("lat").toString()) : new BigDecimal("37.7596");
-        BigDecimal dLng = dropoff.get("lng") != null ? new BigDecimal(dropoff.get("lng").toString()) : new BigDecimal("-122.4269");
-        BigDecimal weight = pkg.get("weightKg") != null ? new BigDecimal(pkg.get("weightKg").toString()) : new BigDecimal("1.5");
-
-        PlanType planType = candidateId.contains("FASTEST") ? PlanType.FASTEST : PlanType.BEST_VALUE;
-        VehicleType vType = planType == PlanType.FASTEST ? VehicleType.DRONE : VehicleType.ROBOT;
+        // 服务端按同一份请求重新计算推荐并取用户所选方案：扣款价格、站点、载具类型与时间
+        // 均与推荐结果一致，不信任客户端传入的价格。方案已不可用时返回 409。
+        RecommendationService.SelectedPlan selected = recommendationService
+                .resolveContractCandidate(body, currentUser, candidateId)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Selected plan " + candidateId + " is no longer available. Please refresh the recommendations."));
+        QuoteRequest quote = selected.getRequest();
+        PlanOptionDto plan = selected.getPlan();
 
         CheckoutRequest req = CheckoutRequest.builder()
-                .planType(planType)
-                .vehicleType(vType)
-                .stationId(1L)
-                .pickupAddress((String) pickup.getOrDefault("line1", "Market St, San Francisco"))
-                .pickupLat(pLat)
-                .pickupLng(pLng)
-                .dropoffAddress((String) dropoff.getOrDefault("line1", "Mission St, San Francisco"))
-                .dropoffLat(dLat)
-                .dropoffLng(dLng)
-                .packageWeight(weight)
-                .packageVolume(new BigDecimal("0.02"))
-                .totalDistance(new BigDecimal("8.50"))
-                .originPrice(new BigDecimal("18.50"))
-                .finalPrice(new BigDecimal("18.50"))
-                .cardNumber("4532 8901 2345 6789")
+                .planType(plan.getPlanType())
+                .vehicleType(plan.getVehicleType())
+                .stationId(plan.getStationId())
+                .pickupAddress(quote.getPickupAddress())
+                .pickupLat(quote.getPickupLat())
+                .pickupLng(quote.getPickupLng())
+                .dropoffAddress(quote.getDropoffAddress())
+                .dropoffLat(quote.getDropoffLat())
+                .dropoffLng(quote.getDropoffLng())
+                .packageWeight(quote.getPackageWeight())
+                .packageVolume(quote.getPackageVolume())
+                .totalDistance(plan.getTotalDistance())
+                .originPrice(plan.getOriginPrice())
+                .discountAmount(plan.getDiscountAmount())
+                .finalPrice(plan.getFinalPrice())
+                .scheduledStartTime(plan.getScheduledStartTime())
+                .estimatedDeliveryTime(plan.getEstimatedDeliveryTime())
+                .cardNumber("4532 8901 2345 6789") // 模拟支付卡号
                 .build();
 
         CheckoutResponse response = orderService.checkoutAndLockVehicle(req, currentUser);
@@ -74,8 +74,8 @@ public class OrderController {
         res.put("orderId", response.getOrderNumber());
         res.put("trackingCode", response.getTrackingCode());
         res.put("status", "PENDING");
-        res.put("estimatedTimeMinutes", 25);
-        res.put("estimatedCost", 18.50);
+        res.put("estimatedTimeMinutes", plan.getEstimatedMinutes());
+        res.put("estimatedCost", plan.getFinalPrice());
 
         return ResponseEntity.status(HttpStatus.CREATED).body(res);
     }
@@ -117,19 +117,6 @@ public class OrderController {
         res.put("orderId", order.getOrderNumber());
         res.put("status", "DELIVERED");
         return ResponseEntity.ok(res);
-    }
-
-    // 向下兼容的结账接口
-    @PostMapping("/checkout")
-    public ResponseEntity<CheckoutResponse> checkout(
-            @Valid @RequestBody CheckoutRequest request,
-            @AuthenticationPrincipal User currentUser
-    ) {
-        if (currentUser == null) {
-            return ResponseEntity.status(401).build();
-        }
-        CheckoutResponse response = orderService.checkoutAndLockVehicle(request, currentUser);
-        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{orderNumber}")

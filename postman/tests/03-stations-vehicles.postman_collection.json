@@ -47,6 +47,14 @@
     {
       "key": "drones2Before",
       "value": ""
+    },
+    {
+      "key": "quotedCost",
+      "value": ""
+    },
+    {
+      "key": "quotedMinutes",
+      "value": ""
     }
   ],
   "item": [

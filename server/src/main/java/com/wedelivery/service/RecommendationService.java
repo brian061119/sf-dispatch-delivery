@@ -275,36 +275,7 @@ public class RecommendationService {
     public com.wedelivery.dto.RecommendationContractDto.Response generateContractRecommendations(
             java.util.Map<String, Object> body, User currentUser
     ) {
-        // 从契约 payload 提取
-        java.util.Map<String, Object> pickup = (java.util.Map<String, Object>) body.getOrDefault("pickup", java.util.Collections.emptyMap());
-        java.util.Map<String, Object> dropoff = (java.util.Map<String, Object>) body.getOrDefault("dropoff", java.util.Collections.emptyMap());
-        java.util.Map<String, Object> pkg = (java.util.Map<String, Object>) body.getOrDefault("package", java.util.Collections.emptyMap());
-
-        BigDecimal pLat = pickup.get("lat") != null ? new BigDecimal(pickup.get("lat").toString()) : new BigDecimal("37.7858");
-        BigDecimal pLng = pickup.get("lng") != null ? new BigDecimal(pickup.get("lng").toString()) : new BigDecimal("-122.4065");
-        BigDecimal dLat = dropoff.get("lat") != null ? new BigDecimal(dropoff.get("lat").toString()) : new BigDecimal("37.7596");
-        BigDecimal dLng = dropoff.get("lng") != null ? new BigDecimal(dropoff.get("lng").toString()) : new BigDecimal("-122.4269");
-
-        BigDecimal weight = pkg.get("weightKg") != null ? new BigDecimal(pkg.get("weightKg").toString()) : new BigDecimal("1.5");
-        BigDecimal vol = new BigDecimal("0.02");
-        if (pkg.get("lengthCm") != null && pkg.get("widthCm") != null && pkg.get("heightCm") != null) {
-            double l = Double.parseDouble(pkg.get("lengthCm").toString()) / 100.0;
-            double w = Double.parseDouble(pkg.get("widthCm").toString()) / 100.0;
-            double h = Double.parseDouble(pkg.get("heightCm").toString()) / 100.0;
-            vol = BigDecimal.valueOf(l * w * h).setScale(4, RoundingMode.HALF_UP);
-        }
-
-        QuoteRequest quoteReq = QuoteRequest.builder()
-                .pickupAddress((String) pickup.getOrDefault("line1", "San Francisco Pickup"))
-                .pickupLat(pLat)
-                .pickupLng(pLng)
-                .dropoffAddress((String) dropoff.getOrDefault("line1", "San Francisco Dropoff"))
-                .dropoffLat(dLat)
-                .dropoffLng(dLng)
-                .packageWeight(weight)
-                .packageVolume(vol)
-                .build();
-
+        QuoteRequest quoteReq = buildContractQuoteRequest(body);
         QuoteResponse quoteRes = generateRecommendations(quoteReq, currentUser);
         List<PlanOptionDto> plans = quoteRes.getPlans();
 
@@ -325,7 +296,7 @@ public class RecommendationService {
             double score = (isFastest ? 50.0 : 30.0) + (isCheapest ? 50.0 : 30.0);
 
             candidates.add(com.wedelivery.dto.RecommendationContractDto.CandidateDto.builder()
-                    .candidateId("CAND-" + p.getPlanType().name())
+                    .candidateId(candidateIdOf(p))
                     .stationId(String.valueOf(p.getStationId()))
                     .stationName(p.getStationName())
                     .vehicleType(p.getVehicleType().name())
@@ -340,6 +311,66 @@ public class RecommendationService {
 
         return com.wedelivery.dto.RecommendationContractDto.Response.builder()
                 .candidates(candidates)
+                .build();
+    }
+
+    /**
+     * 下单时在服务端按同一份请求重新计算推荐，返回用户所选的方案。
+     * 价格、站点、载具类型、里程与时间均以服务端计算为准，不信任客户端传值；
+     * 所选方案当前已不可用（例如载具刚被订走）时返回 empty。
+     */
+    public java.util.Optional<SelectedPlan> resolveContractCandidate(
+            java.util.Map<String, Object> body, User currentUser, String candidateId
+    ) {
+        QuoteRequest quoteReq = buildContractQuoteRequest(body);
+        return generateRecommendations(quoteReq, currentUser).getPlans().stream()
+                .filter(p -> candidateIdOf(p).equals(candidateId))
+                .findFirst()
+                .map(p -> new SelectedPlan(quoteReq, p));
+    }
+
+    /** 下单所选方案：计算推荐时使用的请求 + 对应方案 */
+    @lombok.Getter
+    @lombok.AllArgsConstructor
+    public static class SelectedPlan {
+        private final QuoteRequest request;
+        private final PlanOptionDto plan;
+    }
+
+    private static String candidateIdOf(PlanOptionDto plan) {
+        return "CAND-" + plan.getPlanType().name();
+    }
+
+    /** 从契约 payload (pickup / dropoff / package) 构造推荐请求 */
+    private QuoteRequest buildContractQuoteRequest(java.util.Map<String, Object> body) {
+        // 从契约 payload 提取
+        java.util.Map<String, Object> pickup = (java.util.Map<String, Object>) body.getOrDefault("pickup", java.util.Collections.emptyMap());
+        java.util.Map<String, Object> dropoff = (java.util.Map<String, Object>) body.getOrDefault("dropoff", java.util.Collections.emptyMap());
+        java.util.Map<String, Object> pkg = (java.util.Map<String, Object>) body.getOrDefault("package", java.util.Collections.emptyMap());
+
+        BigDecimal pLat = pickup.get("lat") != null ? new BigDecimal(pickup.get("lat").toString()) : new BigDecimal("37.7858");
+        BigDecimal pLng = pickup.get("lng") != null ? new BigDecimal(pickup.get("lng").toString()) : new BigDecimal("-122.4065");
+        BigDecimal dLat = dropoff.get("lat") != null ? new BigDecimal(dropoff.get("lat").toString()) : new BigDecimal("37.7596");
+        BigDecimal dLng = dropoff.get("lng") != null ? new BigDecimal(dropoff.get("lng").toString()) : new BigDecimal("-122.4269");
+
+        BigDecimal weight = pkg.get("weightKg") != null ? new BigDecimal(pkg.get("weightKg").toString()) : new BigDecimal("1.5");
+        BigDecimal vol = new BigDecimal("0.02");
+        if (pkg.get("lengthCm") != null && pkg.get("widthCm") != null && pkg.get("heightCm") != null) {
+            double l = Double.parseDouble(pkg.get("lengthCm").toString()) / 100.0;
+            double w = Double.parseDouble(pkg.get("widthCm").toString()) / 100.0;
+            double h = Double.parseDouble(pkg.get("heightCm").toString()) / 100.0;
+            vol = BigDecimal.valueOf(l * w * h).setScale(4, RoundingMode.HALF_UP);
+        }
+
+        return QuoteRequest.builder()
+                .pickupAddress((String) pickup.getOrDefault("line1", "San Francisco Pickup"))
+                .pickupLat(pLat)
+                .pickupLng(pLng)
+                .dropoffAddress((String) dropoff.getOrDefault("line1", "San Francisco Dropoff"))
+                .dropoffLat(dLat)
+                .dropoffLng(dLng)
+                .packageWeight(weight)
+                .packageVolume(vol)
                 .build();
     }
 
