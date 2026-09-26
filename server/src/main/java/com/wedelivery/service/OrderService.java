@@ -4,15 +4,19 @@ import com.wedelivery.dto.CheckoutRequest;
 import com.wedelivery.dto.CheckoutResponse;
 import com.wedelivery.entity.*;
 import com.wedelivery.entity.enums.OrderStatus;
+import com.wedelivery.entity.enums.Role;
+import com.wedelivery.exception.ResourceNotFoundException;
 import com.wedelivery.entity.enums.TrackingStage;
 import com.wedelivery.entity.enums.VehicleStatus;
 import com.wedelivery.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -28,6 +32,11 @@ public class OrderService {
     private final StationRepository stationRepository;
     private final PaymentService paymentService;
     private final TrackingEventRepository trackingEventRepository;
+
+    // 追踪码字符集: 去除易混淆的 0/O、1/I，共 32 个字符；16 位 ≈ 80 bit 随机性，无法枚举猜测
+    private static final String TRACKING_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    private static final int TRACKING_CODE_LENGTH = 16;
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     @Transactional(rollbackFor = Exception.class)
     public CheckoutResponse checkoutAndLockVehicle(CheckoutRequest req, User currentUser) {
@@ -59,6 +68,7 @@ public class OrderService {
 
         Order order = Order.builder()
                 .orderNumber(orderNumber)
+                .trackingCode(generateTrackingCode())
                 .userId(currentUser.getId())
                 .stationId(req.getStationId())
                 .vehicleId(lockedVehicle.getId())
@@ -126,6 +136,7 @@ public class OrderService {
 
         return CheckoutResponse.builder()
                 .orderNumber(order.getOrderNumber())
+                .trackingCode(order.getTrackingCode())
                 .status(OrderStatus.PAID)
                 .transactionNo(payment.getTransactionNo())
                 .assignedVehicleCode(lockedVehicle.getVehicleCode())
@@ -136,7 +147,47 @@ public class OrderService {
 
     public Order getOrderByNumber(String orderNumber) {
         return orderRepository.findByOrderNumber(orderNumber)
-                .orElseThrow(() -> new IllegalArgumentException("Order not found with number: " + orderNumber));
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderNumber));
+    }
+
+    private String generateTrackingCode() {
+        String code;
+        do {
+            StringBuilder sb = new StringBuilder(TRACKING_CODE_LENGTH);
+            for (int i = 0; i < TRACKING_CODE_LENGTH; i++) {
+                sb.append(TRACKING_CODE_ALPHABET.charAt(SECURE_RANDOM.nextInt(TRACKING_CODE_ALPHABET.length())));
+            }
+            code = sb.toString();
+        } while (orderRepository.existsByTrackingCode(code));
+        return code;
+    }
+
+    /**
+     * 查询订单并校验访问权限: 仅下单用户本人或管理员可查看。
+     * 无权限时抛出 AccessDeniedException，由 Spring Security 转换为 403。
+     */
+    public Order getAccessibleOrder(String orderNumber, User currentUser) {
+        Order order = getOrderByNumber(orderNumber);
+        boolean isOwner = order.getUserId().equals(currentUser.getId());
+        boolean isAdmin = currentUser.getRole() == Role.ADMIN;
+        if (!isOwner && !isAdmin) {
+            throw new AccessDeniedException("You do not have access to order " + orderNumber);
+        }
+        return order;
+    }
+
+    // 确认签收仅限下单用户本人 (管理员可查看但不能代签)
+    @Transactional
+    public Order confirmReceipt(String orderNumber, User currentUser) {
+        Order order = getOrderByNumber(orderNumber);
+        if (!order.getUserId().equals(currentUser.getId())) {
+            throw new AccessDeniedException("Only the customer who placed order " + orderNumber + " can confirm receipt");
+        }
+        order.setStatus(OrderStatus.DELIVERED);
+        if (order.getActualDeliveryTime() == null) {
+            order.setActualDeliveryTime(LocalDateTime.now());
+        }
+        return orderRepository.save(order);
     }
 
     public List<Order> getUserOrders(Long userId) {

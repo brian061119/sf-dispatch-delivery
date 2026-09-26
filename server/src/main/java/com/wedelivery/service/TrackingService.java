@@ -5,6 +5,7 @@ import com.wedelivery.entity.Order;
 import com.wedelivery.entity.Station;
 import com.wedelivery.entity.TrackingEvent;
 import com.wedelivery.entity.Vehicle;
+import com.wedelivery.exception.ResourceNotFoundException;
 import com.wedelivery.entity.enums.OrderStatus;
 import com.wedelivery.entity.enums.TrackingStage;
 import com.wedelivery.entity.enums.VehicleStatus;
@@ -37,8 +38,18 @@ public class TrackingService {
     @Transactional
     public TrackingResponse trackOrder(String orderNumber) {
         Order order = orderRepository.findByOrderNumber(orderNumber)
-                .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderNumber));
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderNumber));
+        return track(order);
+    }
 
+    @Transactional
+    public TrackingResponse trackByTrackingCode(String trackingCode) {
+        Order order = orderRepository.findByTrackingCode(trackingCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Tracking code not found: " + trackingCode));
+        return track(order);
+    }
+
+    private TrackingResponse track(Order order) {
         Station station = stationRepository.findById(order.getStationId())
                 .orElseThrow(() -> new IllegalStateException("Station not found for order"));
 
@@ -141,8 +152,8 @@ public class TrackingService {
             vehicleRepository.save(vehicle);
         }
 
-        // 状态落库更新
-        if (order.getStatus() != newOrderStatus) {
+        // 状态落库更新 (已签收的订单不再被模拟进度回退为 IN_TRANSIT 等状态)
+        if (order.getStatus() != newOrderStatus && order.getStatus() != OrderStatus.DELIVERED) {
             order.setStatus(newOrderStatus);
             orderRepository.save(order);
         }

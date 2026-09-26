@@ -1,5 +1,6 @@
 package com.wedelivery.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.wedelivery.entity.enums.OrderStatus;
 import com.wedelivery.entity.enums.PlanType;
 import com.wedelivery.entity.enums.VehicleType;
@@ -25,9 +26,15 @@ public class Order {
     @Column(name = "order_number", nullable = false, unique = true, length = 64)
     private String orderNumber;
 
+    // 公开追踪码: 随机不可猜测，持有者无需登录即可只读查看物流状态
+    @Column(name = "tracking_code", nullable = false, unique = true, length = 32)
+    private String trackingCode;
+
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
+    // 仅用于 JPA 关联；序列化时忽略，避免懒加载代理报错及泄露关联实体 (如用户密码哈希)
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", insertable = false, updatable = false)
     private User user;
@@ -35,6 +42,8 @@ public class Order {
     @Column(name = "station_id", nullable = false)
     private Long stationId;
 
+    // 仅用于 JPA 关联；序列化时忽略，避免懒加载代理报错及泄露关联实体 (如用户密码哈希)
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "station_id", insertable = false, updatable = false)
     private Station station;
@@ -42,6 +51,8 @@ public class Order {
     @Column(name = "vehicle_id")
     private Long vehicleId;
 
+    // 仅用于 JPA 关联；序列化时忽略，避免懒加载代理报错及泄露关联实体 (如用户密码哈希)
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vehicle_id", insertable = false, updatable = false)
     private Vehicle vehicle;

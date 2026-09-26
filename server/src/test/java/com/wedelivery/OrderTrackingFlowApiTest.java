@@ -74,7 +74,8 @@ class OrderTrackingFlowApiTest {
         long vehicleId = getJson("/api/orders/" + orderNumber, token).path("vehicleId").asLong();
 
         // 追踪侧（本模块供数给实时追踪系统）
-        JsonNode tracking = getJson("/api/tracking/" + orderNumber, token);
+        // 按订单号追踪需登录且为下单本人；公开的 /api/tracking/{trackingCode} 只接受随机追踪码
+        JsonNode tracking = getJson("/api/orders/" + orderNumber + "/tracking", token);
         BigDecimal trackLat = tracking.path("currentLat").decimalValue();
         BigDecimal trackLng = tracking.path("currentLng").decimalValue();
 
@@ -83,7 +84,7 @@ class OrderTrackingFlowApiTest {
 
         assertThat(vehicle.path("currentLat").decimalValue()).isEqualByComparingTo(trackLat);
         assertThat(vehicle.path("currentLng").decimalValue()).isEqualByComparingTo(trackLng);
-        assertThat(tracking.path("orderStatus").asText()).isNotEqualTo("PENDING_PAYMENT");
+        assertThat(tracking.path("status").asText()).isNotEqualTo("PENDING_PAYMENT");
     }
 
     @Test
@@ -102,9 +103,9 @@ class OrderTrackingFlowApiTest {
     @Test
     @DisplayName("未登录下单被拒绝")
     void checkoutRequiresAuthentication() throws Exception {
-        // SecurityConfig 未配置 AuthenticationEntryPoint，缺凭证时 Spring Security 回落为 403
+        // SecurityConfig 已配置 HttpStatusEntryPoint，缺凭证时返回 401 (已登录但无权限才是 403)
         mvc.perform(post("/api/orders").contentType(MediaType.APPLICATION_JSON).content(NEW_ORDER))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     private String createOrder(String token) throws Exception {

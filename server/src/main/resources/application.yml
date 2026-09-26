@@ -8,16 +8,12 @@ spring:
     name: sf-dispatch-delivery-server
 
   datasource:
-    # 默认使用 H2 内存库便于极速零配置启动测试；如需切换 MySQL，取消注释下方的 MySQL 配置
-    url: jdbc:h2:mem:wedelivery;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=MySQL
+    # 默认使用 H2 内存库便于极速零配置启动测试
+    # 连接 AWS RDS (PostgreSQL) 请使用 aws profile: SPRING_PROFILES_ACTIVE=aws，见 application-aws.yml
+    url: jdbc:h2:mem:wedelivery;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
     driver-class-name: org.h2.Driver
     username: sa
-    password: 
-    # MySQL 生产/外部 RDS 配置示例:
-    # url: jdbc:mysql://localhost:3306/wedelivery?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
-    # driver-class-name: com.mysql.cj.jdbc.Driver
-    # username: root
-    # password: your_password
+    password:
 
   h2:
     console:
@@ -26,7 +22,6 @@ spring:
 
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect
-    # 若使用 MySQL 切换为: org.hibernate.dialect.MySQL8Dialect
     hibernate:
       ddl-auto: update
     show-sql: true
@@ -42,5 +37,6 @@ spring:
 
 # JWT 鉴权配置
 jwt:
-  secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
-  expirationMs: 86400000 # 24 小时有效
+  # 本地开发默认值；aws profile 中必须通过环境变量 JWT_SECRET 提供
+  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+  expirationMs: ${JWT_EXPIRATION_MS:86400000} # 24 小时有效

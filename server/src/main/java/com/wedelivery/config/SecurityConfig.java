@@ -4,6 +4,8 @@ import com.wedelivery.security.JwtAuthFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -11,6 +13,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -39,17 +42,19 @@ public class SecurityConfig {
                 .csrf().disable()
                 .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS).and()
                 .headers().frameOptions().sameOrigin().and() // 允许 H2 控制台
+                // 未登录访问受保护接口返回 401 (而非默认的 403)
+                .exceptionHandling().authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)).and()
                 .authorizeRequests()
                 .antMatchers(
                         "/api/auth/**",
                         "/api/dispatch/**",
-                        "/api/tracking/**",
-                        // 调动模块的只读查询：站点/载具基础信息与实时信息，供订单系统与追踪系统内部调用
-                        "/api/stations/**",
-                        "/api/vehicles/**",
                         "/h2-console/**",
                         "/favicon.ico"
                 ).permitAll()
+                // 调动模块的只读查询：站点/载具基础信息与实时信息，供订单系统与追踪系统内部调用 (仅开放 GET)
+                .antMatchers(HttpMethod.GET, "/api/stations/**", "/api/vehicles/**").permitAll()
+                // 公开物流追踪: 任何持有随机追踪码的人均可只读查看 (仅开放 GET，不允许修改)
+                .antMatchers(HttpMethod.GET, "/api/tracking/**").permitAll()
                 .antMatchers("/api/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated();
 

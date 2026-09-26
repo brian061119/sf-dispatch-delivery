@@ -113,6 +113,7 @@ Response (201):
 ```json
 {
   "orderId": "string",
+  "trackingCode": "string (16 chars, random — share this for public tracking)",
   "status": "PENDING",
   "estimatedTimeMinutes": "number",
   "estimatedCost": "number"
@@ -127,6 +128,7 @@ Get the order list. Response (200):
   "orders": [
     {
       "orderId": "string",
+      "trackingCode": "string",
       "status": "PENDING | IN_TRANSIT | DELIVERED | CANCELLED",
       "createdAt": "ISO-8601 string",
       "packageDescription": "string",
@@ -168,7 +170,7 @@ Response (200):
 ## Tracking
 
 ### GET /api/orders/:orderId/tracking
-Poll tracking status. Response (200):
+Poll tracking status for a logged-in customer. **Requires login** — only the customer who placed the order or an admin (otherwise 403). Response (200) — same shape as the public tracking endpoint below:
 ```json
 {
   "orderId": "string",
@@ -179,6 +181,9 @@ Poll tracking status. Response (200):
   "estimatedArrival": "ISO-8601 string"
 }
 ```
+
+### GET /api/tracking/:trackingCode
+**Public, no login required.** Anyone who has the order's random `trackingCode` (returned by `POST /api/orders` and `GET /api/orders`) can view its status and location. Read-only — only `GET` is allowed. The guessable `orderId` does not work here. Response (200): same shape as `GET /api/orders/:orderId/tracking` above. Unknown code → 404.
 
 ### WS /api/ws/orders/:orderId
 Real-time push (optional stretch feature). Message shape: **TBD** — not required for P0/P1; design only if the team decides to build this optional feature. Likely mirrors the tracking response above, pushed on each position/status update instead of polled.
