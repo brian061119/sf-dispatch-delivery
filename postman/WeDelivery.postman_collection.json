@@ -1,0 +1,467 @@
+{
+  "info": {
+    "name": "WeDelivery API",
+    "description": "SF Dispatch & Delivery backend. Run '1. Auth → Login (admin)' first (it is the last login in the Auth folder, so running the whole collection ends up logged in as admin): it saves the JWT into the {{token}} variable, which every other request uses automatically. Change {{baseUrl}} under the collection's Variables tab.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "candidateId",
+      "value": "CAND-BEST_VALUE"
+    },
+    {
+      "key": "orderId",
+      "value": ""
+    },
+    {
+      "key": "trackingCode",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Auth",
+      "item": [
+        {
+          "name": "Register new user",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Change username/email each time — duplicates are rejected.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"myuser1\",\n  \"password\": \"pass123\",\n  \"email\": \"myuser1@example.com\",\n  \"firstName\": \"Test\",\n  \"lastName\": \"User\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "if (body.token) { pm.collectionVariables.set('token', body.token); console.log('token saved'); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login (normal_user)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Seeded regular user. Use this to check that /api/admin/** is forbidden (403).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"normal_user\",\n  \"password\": \"password123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "if (body.token) { pm.collectionVariables.set('token', body.token); console.log('token saved'); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login (admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Seeded admin account. Saves the token automatically.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"password123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "if (body.token) { pm.collectionVariables.set('token', body.token); console.log('token saved'); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Me (current user)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            },
+            "description": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Stations",
+      "item": [
+        {
+          "name": "List stations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/stations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "stations"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Recommendations",
+      "item": [
+        {
+          "name": "Get recommendations",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/recommendations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "recommendations"
+              ]
+            },
+            "description": "Saves the first candidateId for 'Create order'.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pickup\": {\n    \"line1\": \"Market St, San Francisco\",\n    \"city\": \"San Francisco\",\n    \"zip\": \"94103\",\n    \"lat\": 37.7858,\n    \"lng\": -122.4065\n  },\n  \"dropoff\": {\n    \"line1\": \"Mission St, San Francisco\",\n    \"city\": \"San Francisco\",\n    \"zip\": \"94110\",\n    \"lat\": 37.7596,\n    \"lng\": -122.4269\n  },\n  \"package\": {\n    \"description\": \"Documents\",\n    \"weightKg\": 1.5,\n    \"lengthCm\": 30,\n    \"widthCm\": 20,\n    \"heightCm\": 10,\n    \"fragile\": false\n  },\n  \"priority\": \"STANDARD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const c = pm.response.json().candidates || [];",
+                  "if (c.length) { pm.collectionVariables.set('candidateId', c[0].candidateId); console.log('candidateId saved: ' + c[0].candidateId); }"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Orders",
+      "item": [
+        {
+          "name": "Create order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "description": "Saves orderId and trackingCode for the order / tracking requests.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"candidateId\": \"{{candidateId}}\",\n  \"pickup\": {\n    \"line1\": \"Market St, San Francisco\",\n    \"city\": \"San Francisco\",\n    \"zip\": \"94103\",\n    \"lat\": 37.7858,\n    \"lng\": -122.4065\n  },\n  \"dropoff\": {\n    \"line1\": \"Mission St, San Francisco\",\n    \"city\": \"San Francisco\",\n    \"zip\": \"94110\",\n    \"lat\": 37.7596,\n    \"lng\": -122.4269\n  },\n  \"package\": {\n    \"description\": \"Documents\",\n    \"weightKg\": 1.5,\n    \"lengthCm\": 30,\n    \"widthCm\": 20,\n    \"heightCm\": 10,\n    \"fragile\": false\n  },\n  \"priority\": \"STANDARD\",\n  \"paymentMethodId\": \"pm_mock\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const b = pm.response.json();",
+                  "if (b.orderId) { pm.collectionVariables.set('orderId', b.orderId); console.log('orderId saved: ' + b.orderId); }",
+                  "if (b.trackingCode) { pm.collectionVariables.set('trackingCode', b.trackingCode); console.log('trackingCode saved: ' + b.trackingCode); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "My orders",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Order detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{orderId}}"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Confirm receipt",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderId}}/confirm-receipt",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{orderId}}",
+                "confirm-receipt"
+              ]
+            },
+            "description": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Tracking",
+      "item": [
+        {
+          "name": "Track my order (owner/admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderId}}/tracking",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{orderId}}",
+                "tracking"
+              ]
+            },
+            "description": "Requires login: only the customer who placed the order, or an admin."
+          }
+        },
+        {
+          "name": "Public tracking (no login)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tracking/{{trackingCode}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "tracking",
+                "{{trackingCode}}"
+              ]
+            },
+            "description": "Anyone with the random tracking code can view status and location without logging in. Read-only."
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Admin",
+      "item": [
+        {
+          "name": "Admin dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/dashboard",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "dashboard"
+              ]
+            },
+            "description": "200 when logged in as admin, 403 as normal_user."
+          }
+        }
+      ]
+    }
+  ]
+}

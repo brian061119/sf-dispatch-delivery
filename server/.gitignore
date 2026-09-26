@@ -2,3 +2,7 @@
 /target/
 /.idea/
 *.iml
+# Local secrets / env files
+.env
+*.env
+application-local.yml

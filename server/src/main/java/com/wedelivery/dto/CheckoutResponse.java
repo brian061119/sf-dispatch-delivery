@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 @Builder
 public class CheckoutResponse {
     private String orderNumber;
+    private String trackingCode;
     private OrderStatus status;
     private String transactionNo;
     private String assignedVehicleCode;

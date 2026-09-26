@@ -143,7 +143,7 @@ WeDelivery 是一家服务于旧金山市内的智能无人化物流服务商。
 
 ![WeDelivery 系统分层架构图](images/system_architecture_diagram.png)
 
-系统由客户端层、安全鉴权层、Spring Boot REST 控制器层、业务逻辑层（推荐/路线/支付/追踪）、Spring Data JPA 数据持久层以及 MySQL 关系型数据库组成，分层清晰，职责单一。
+系统由客户端层、安全鉴权层、Spring Boot REST 控制器层、业务逻辑层（推荐/路线/支付/追踪）、Spring Data JPA 数据持久层以及 PostgreSQL 关系型数据库组成，分层清晰，职责单一。
 
 ---
 
@@ -320,11 +320,11 @@ VALUES
 | **安全鉴权** | **Spring Security 6 + JWT** | 无状态 Token 交互，天然支持普通用户 / VIP / Admin 的角色拦截权限 |
 | **前端框架** | **React 18 + TypeScript + Ant Design** | 组件库丰富，能极快搭建出高颜值的询价表单、卡片对比及 Admin 站控大盘 |
 | **前端地图** | **Leaflet 或 Mapbox GL JS** | 开源且完全免费，提供非常现代平滑的标记物平移与航线渲染 API |
-| **数据库** | **MySQL 8.0 / AWS RDS** | 标准关系型数据库，完全覆盖 6 张核心表的地理坐标与强事务需求 |
+| **数据库** | **PostgreSQL / AWS RDS** | 标准关系型数据库，完全覆盖 6 张核心表的地理坐标与强事务需求，并可扩展 PostGIS 空间查询 |
 
 ### 5.2 阶段里程碑推进建议
 
-1. **Sprint 1 (基础工程与认证)**：搭建 Spring Boot 3 脚手架，初始化 6 张 MySQL 表与种子数据，实现注册登录与 JWT 鉴权。
+1. **Sprint 1 (基础工程与认证)**：搭建 Spring Boot 3 脚手架，初始化 6 张 PostgreSQL 表与种子数据，实现注册登录与 JWT 鉴权。
 2. **Sprint 2 (推荐引擎与路线计算)**：实现 RouteService 本地公式与闭环全航程计算，实现 RecommendationService 输出三方案对比。
 3. **Sprint 3 (锁车支付与虚拟 GPS 轨迹)**：实现 MockPaymentService 与 `@Transactional` 订单原子锁车，实现 TrackingService 方案 A 数学插值与轨迹接口。
 4. **Sprint 4 (Admin 监控大盘与全流程联调)**：开发 Admin 大盘（3个站点载具分布卡片、全城订单看板），前后端联调与 Demo 演练。

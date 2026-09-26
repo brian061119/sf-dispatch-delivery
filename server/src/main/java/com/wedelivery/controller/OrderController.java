@@ -4,7 +4,6 @@ import com.wedelivery.dto.CheckoutRequest;
 import com.wedelivery.dto.CheckoutResponse;
 import com.wedelivery.entity.Order;
 import com.wedelivery.entity.User;
-import com.wedelivery.entity.enums.OrderStatus;
 import com.wedelivery.entity.enums.PlanType;
 import com.wedelivery.entity.enums.VehicleType;
 import com.wedelivery.service.OrderService;
@@ -73,6 +72,7 @@ public class OrderController {
 
         Map<String, Object> res = new HashMap<>();
         res.put("orderId", response.getOrderNumber());
+        res.put("trackingCode", response.getTrackingCode());
         res.put("status", "PENDING");
         res.put("estimatedTimeMinutes", 25);
         res.put("estimatedCost", 18.50);
@@ -93,6 +93,7 @@ public class OrderController {
         List<Map<String, Object>> orderList = orders.stream().map(o -> {
             Map<String, Object> m = new HashMap<>();
             m.put("orderId", o.getOrderNumber());
+            m.put("trackingCode", o.getTrackingCode());
             m.put("status", o.getStatus().name());
             m.put("createdAt", o.getCreatedAt().format(DateTimeFormatter.ISO_DATE_TIME));
             m.put("packageDescription", o.getPickupAddress() + " -> " + o.getDropoffAddress());
@@ -107,9 +108,11 @@ public class OrderController {
 
     // 契约路径: PATCH /api/orders/:orderId/confirm-receipt (确认签收)
     @PatchMapping("/{orderNumber}/confirm-receipt")
-    public ResponseEntity<Map<String, Object>> confirmReceipt(@PathVariable String orderNumber) {
-        Order order = orderService.getOrderByNumber(orderNumber);
-        order.setStatus(OrderStatus.DELIVERED);
+    public ResponseEntity<Map<String, Object>> confirmReceipt(
+            @PathVariable String orderNumber,
+            @AuthenticationPrincipal User currentUser
+    ) {
+        Order order = orderService.confirmReceipt(orderNumber, currentUser);
         Map<String, Object> res = new HashMap<>();
         res.put("orderId", order.getOrderNumber());
         res.put("status", "DELIVERED");
@@ -130,8 +133,11 @@ public class OrderController {
     }
 
     @GetMapping("/{orderNumber}")
-    public ResponseEntity<Order> getOrder(@PathVariable String orderNumber) {
-        return ResponseEntity.ok(orderService.getOrderByNumber(orderNumber));
+    public ResponseEntity<Order> getOrder(
+            @PathVariable String orderNumber,
+            @AuthenticationPrincipal User currentUser
+    ) {
+        return ResponseEntity.ok(orderService.getAccessibleOrder(orderNumber, currentUser));
     }
 
     @GetMapping("/my")
