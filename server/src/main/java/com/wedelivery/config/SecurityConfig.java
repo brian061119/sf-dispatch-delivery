@@ -47,12 +47,15 @@ public class SecurityConfig {
                 .authorizeRequests()
                 .antMatchers(
                         "/api/auth/**",
-                        "/api/dispatch/**",
                         "/h2-console/**",
                         "/favicon.ico"
                 ).permitAll()
                 // 调动模块的只读查询：站点/载具基础信息与实时信息，供订单系统与追踪系统内部调用 (仅开放 GET)
-                .antMatchers(HttpMethod.GET, "/api/stations/**", "/api/vehicles/**").permitAll()
+                .antMatchers(HttpMethod.GET, "/api/stations/**", "/api/vehicles/**", "/api/dispatch/**").permitAll()
+                // 报价为只读计算，保持公开
+                .antMatchers(HttpMethod.POST, "/api/dispatch/quote").permitAll()
+                // 调动模块其余写操作 (站点/载具导入、机器遥测与位置上报、模拟推进) 仅限管理员
+                .antMatchers("/api/dispatch/**").hasRole("ADMIN")
                 // 公开物流追踪: 任何持有随机追踪码的人均可只读查看 (仅开放 GET，不允许修改)
                 .antMatchers(HttpMethod.GET, "/api/tracking/**").permitAll()
                 .antMatchers("/api/admin/**").hasRole("ADMIN")

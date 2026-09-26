@@ -94,8 +94,9 @@ class AuthAndAdminApiTest {
                 .andExpect(jsonPath("$.candidates[?(@.vehicleType=='DRONE')].availableUnits")
                         .value(org.hamcrest.Matchers.hasItem(2)));
 
-        // 让其中一台报故障，可调度台数应随之下降 —— 证明该值是算出来的
+        // 让其中一台报故障，可调度台数应随之下降 —— 证明该值是算出来的 (机器上报接口仅限管理员)
         mvc.perform(post("/api/dispatch/vehicles/DRONE-DT-01/telemetry")
+                        .header("Authorization", "Bearer " + login("admin", "password123"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"FAULT\"}"))
                 .andExpect(status().isOk());

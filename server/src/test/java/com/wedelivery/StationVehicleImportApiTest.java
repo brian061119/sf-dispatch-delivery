@@ -10,6 +10,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.test.context.support.WithMockUser;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -29,6 +30,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @Transactional
 @DisplayName("接入 · 基础信息批量导入")
+// 调动模块写接口仅限管理员 (见 SecurityConfig)，本类以管理员身份调用
+@WithMockUser(roles = "ADMIN")
 class StationVehicleImportApiTest {
 
     private static final String STATION_IMPORT = "/api/dispatch/stations/import";

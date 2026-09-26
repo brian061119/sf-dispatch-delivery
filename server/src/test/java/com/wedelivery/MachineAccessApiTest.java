@@ -11,6 +11,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.test.context.support.WithMockUser;
 
 import java.time.LocalDateTime;
 
@@ -30,6 +31,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @Transactional
 @DisplayName("接入 · 机器心跳与地图位置")
+// 调动模块写接口仅限管理员 (见 SecurityConfig)，本类以管理员身份调用
+@WithMockUser(roles = "ADMIN")
 class MachineAccessApiTest {
 
     private static final String TELEMETRY = "/api/dispatch/vehicles/%s/telemetry";

@@ -13,6 +13,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.test.context.support.WithMockUser;
 
 import java.math.BigDecimal;
 
@@ -32,6 +33,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @Transactional
 @DisplayName("模拟器 · simulate/tick")
+// 调动模块写接口仅限管理员 (见 SecurityConfig)，本类以管理员身份调用
+@WithMockUser(roles = "ADMIN")
 class DispatchSimulationApiTest {
 
     private static final String TICK = "/api/dispatch/simulate/tick";
