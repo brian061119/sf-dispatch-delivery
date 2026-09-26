@@ -198,8 +198,14 @@ The merged app was started once against RDS, which ran both migrations and added
 | Restart on an existing database | no duplicate seed data |
 
 ### Postman
-Import `postman/WeDelivery.postman_collection.json`. Run *1. Auth → Login (admin)* first (it is the last login in the Auth folder, so running the whole collection ends logged in as admin). The token, `candidateId`, `orderId` and `trackingCode` are saved automatically. Change `baseUrl` under the collection's *Variables* tab if the backend isn't on `http://localhost:8080`.
+Two collections in `postman/` (import them via Postman → *Import*):
 
+| Collection | Use it for |
+|---|---|
+| `WeDelivery-Backend-Tests.postman_collection.json` | **Full test suite** — 9 folders, 71 requests, 110 automatic checks (auth, public reads, recommendations, orders & ownership, tracking, confirm receipt, admin, dispatch writes). Run with *Run collection*; the Runner shows PASS/FAIL. Repeatable: vehicle changes are undone within the run. Verified 110/110 twice in a row on H2 and on PostgreSQL. |
+| `WeDelivery.postman_collection.json` | Quick manual walkthrough of the main flow (13 requests). |
+
+Both use `{{baseUrl}}` (default `http://localhost:8080`, change it under the collection's *Variables* tab). Each full-suite run creates 2 users and 1 order — fine locally (H2 is wiped on restart), but against the AWS database they stay.
 ---
 
 ## 9. API changes the frontend needs to know
