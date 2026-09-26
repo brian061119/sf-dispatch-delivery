@@ -44,6 +44,9 @@ public class SecurityConfig {
                         "/api/auth/**",
                         "/api/dispatch/**",
                         "/api/tracking/**",
+                        // 调动模块的只读查询：站点/载具基础信息与实时信息，供订单系统与追踪系统内部调用
+                        "/api/stations/**",
+                        "/api/vehicles/**",
                         "/h2-console/**",
                         "/favicon.ico"
                 ).permitAll()

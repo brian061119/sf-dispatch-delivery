@@ -115,14 +115,30 @@ public class TrackingService {
             currentLng = sLng;
             recordMilestoneIfAbsent(order.getId(), TrackingStage.COMPLETED, "载具已安全返回分配中心泊位", sLat, sLng);
 
-            // 更新载具状态为 IDLE / CHARGING
-            if (vehicle != null && vehicle.getStatus() == VehicleStatus.BUSY) {
-                vehicle.setStatus(VehicleStatus.IDLE);
-                vehicleRepository.save(vehicle);
-            }
             if (order.getActualDeliveryTime() == null) {
                 order.setActualDeliveryTime(now);
             }
+        }
+
+        // 同步机器实时信息：位置与速度随航段推进，返站后归位并恢复待命。
+        // 本方法即「机器实时信息 → 实时追踪系统」的接入口，追踪侧不必再自行推算载具坐标。
+        if (vehicle != null) {
+            boolean backAtStation = currentStage == TrackingStage.COMPLETED;
+            vehicle.setCurrentLat(currentLat);
+            vehicle.setCurrentLng(currentLng);
+            vehicle.setPositionUpdatedAt(now);
+            vehicle.setLocationCode(backAtStation ? station.getId().intValue() : Vehicle.LOCATION_NOT_AT_STATION);
+            if (backAtStation) {
+                vehicle.setCurrentSpeed(BigDecimal.ZERO);
+                if (vehicle.getStatus() == VehicleStatus.IN_DELIVERY) {
+                    vehicle.setStatus(VehicleStatus.IDLE);
+                    vehicle.setStatusUpdatedAt(now);
+                }
+            } else {
+                vehicle.setCurrentSpeed(vehicle.getCruiseSpeed());
+            }
+            vehicle.setSpeedUpdatedAt(now);
+            vehicleRepository.save(vehicle);
         }
 
         // 状态落库更新

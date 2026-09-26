@@ -27,5 +27,7 @@ public class PlanOptionDto {
     private LocalDateTime scheduledStartTime;
     private LocalDateTime estimatedDeliveryTime;
     private String vehicleCode;
+    /** 本站可承接该需求的同类载具数量（已通过载荷、续航路程、电量三重准入） */
+    private Integer availableUnits;
     private String description;
 }

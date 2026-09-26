@@ -92,15 +92,25 @@ public class OrderService {
                 req.getCardNumber()
         );
 
-        // 4. 扣款成功：将载具变更为 BUSY，订单变更为 PAID
-        lockedVehicle.setStatus(VehicleStatus.BUSY);
+        // 4. 扣款成功：载具转入「配送中」，并同步机器实时信息
+        //    位置编码置 0（已离开站点），速度取该机默认最大速度，位置暂记为出站点
+        Station station = stationRepository.findById(req.getStationId()).orElse(null);
+        LocalDateTime now = LocalDateTime.now();
+
+        lockedVehicle.setStatus(VehicleStatus.IN_DELIVERY);
+        lockedVehicle.setStatusUpdatedAt(now);
+        lockedVehicle.setLocationCode(Vehicle.LOCATION_NOT_AT_STATION);
+        lockedVehicle.setCurrentSpeed(lockedVehicle.getCruiseSpeed());
+        lockedVehicle.setSpeedUpdatedAt(now);
+        lockedVehicle.setCurrentLat(station != null ? station.getLatitude() : req.getPickupLat());
+        lockedVehicle.setCurrentLng(station != null ? station.getLongitude() : req.getPickupLng());
+        lockedVehicle.setPositionUpdatedAt(now);
         vehicleRepository.save(lockedVehicle);
 
         order.setStatus(OrderStatus.PAID);
         orderRepository.save(order);
 
         // 5. 写入首个轨迹里程碑事件
-        Station station = stationRepository.findById(req.getStationId()).orElse(null);
         BigDecimal initialLat = station != null ? station.getLatitude() : req.getPickupLat();
         BigDecimal initialLng = station != null ? station.getLongitude() : req.getPickupLng();
 

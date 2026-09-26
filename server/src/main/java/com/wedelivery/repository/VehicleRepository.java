@@ -21,6 +21,10 @@ public interface VehicleRepository extends JpaRepository<Vehicle, Long> {
 
     List<Vehicle> findByStationId(Long stationId);
 
+    Optional<Vehicle> findByVehicleCode(String vehicleCode);
+
+    List<Vehicle> findByStatus(VehicleStatus status);
+
     // 下单时的原子悲观锁查询可用车辆，锁定首辆满足条件的载具
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT v FROM Vehicle v WHERE v.stationId = :stationId " +

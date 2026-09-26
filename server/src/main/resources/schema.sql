@@ -30,6 +30,9 @@ CREATE TABLE IF NOT EXISTS stations (
 );
 
 -- 3. 配送载具表 vehicles
+--    基础信息: vehicle_code / vehicle_type / max_weight / max_volume / cruise_speed / endurance_minutes
+--    实时信息: status / battery_level / location_code / current_lat / current_lng / current_speed
+--              + position_updated_at / status_updated_at / speed_updated_at / updated_at
 CREATE TABLE IF NOT EXISTS vehicles (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     station_id BIGINT NOT NULL,
@@ -40,6 +43,15 @@ CREATE TABLE IF NOT EXISTS vehicles (
     max_weight DECIMAL(5, 2) NOT NULL,
     max_volume DECIMAL(5, 2) NOT NULL,
     cruise_speed DECIMAL(5, 2) NOT NULL,
+    endurance_minutes DECIMAL(6, 2) NOT NULL,
+    -- 位置编码: 0=不在任何站点, 1/2/3=位于对应站点 id
+    location_code INT NOT NULL DEFAULT 0,
+    current_lat DECIMAL(10, 7),
+    current_lng DECIMAL(10, 7),
+    current_speed DECIMAL(5, 2) NOT NULL DEFAULT 0.00,
+    position_updated_at DATETIME,
+    status_updated_at DATETIME,
+    speed_updated_at DATETIME,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_vehicle_station FOREIGN KEY (station_id) REFERENCES stations (id)
 );
