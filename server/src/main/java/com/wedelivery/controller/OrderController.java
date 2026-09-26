@@ -1,7 +1,5 @@
 package com.wedelivery.controller;
 
-import com.wedelivery.dto.CheckoutRequest;
-import com.wedelivery.dto.CheckoutResponse;
 import com.wedelivery.dto.OrderCreateRequest;
 import com.wedelivery.dto.OrderCreateResponse;
 import com.wedelivery.entity.Order;
@@ -28,8 +26,9 @@ public class OrderController {
     private final OrderService orderService;
 
     /**
-     * 契约路径: POST /api/orders
-     * 接收前端选定的 candidateId 与取送件信息，执行动态服务端验价、原子锁车、Mock 扣款并创建订单
+     * API Contract: POST /api/orders
+     * Accepts candidateId and route specs, performs server-side price validation,
+     * atomically locks vehicle, processes mock payment, and creates order.
      */
     @PostMapping
     public ResponseEntity<OrderCreateResponse> createOrderContract(
@@ -45,7 +44,7 @@ public class OrderController {
     }
 
     /**
-     * 契约路径: GET /api/orders (获取当前用户订单列表)
+     * API Contract: GET /api/orders (Get current user's order list)
      */
     @GetMapping
     public ResponseEntity<Map<String, Object>> getOrdersContract(@AuthenticationPrincipal User currentUser) {
@@ -59,7 +58,7 @@ public class OrderController {
             Map<String, Object> m = new HashMap<>();
             m.put("orderId", o.getOrderNumber());
 
-            // 对外契约状态映射: PENDING | IN_TRANSIT | DELIVERED | CANCELLED
+            // External contract status mapping: PENDING | IN_TRANSIT | DELIVERED | CANCELLED
             String contractStatus;
             if (o.getStatus() == OrderStatus.DELIVERED) {
                 contractStatus = "DELIVERED";
@@ -84,7 +83,7 @@ public class OrderController {
     }
 
     /**
-     * 契约路径: GET /api/orders/:orderId (获取订单详情)
+     * API Contract: GET /api/orders/:orderId (Get order detail)
      */
     @GetMapping("/{orderNumber}")
     public ResponseEntity<Map<String, Object>> getOrder(
@@ -93,7 +92,7 @@ public class OrderController {
     ) {
         Order order = orderService.getOrderByNumber(orderNumber);
 
-        // 数据权限校验：仅本人或 ADMIN 允许查看
+        // Authorization check: only order owner or ADMIN allowed
         if (currentUser != null && currentUser.getRole() != Role.ADMIN && !order.getUserId().equals(currentUser.getId())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
@@ -125,7 +124,7 @@ public class OrderController {
     }
 
     /**
-     * 契约路径: PATCH /api/orders/:orderId/confirm-receipt (确认签收并释放载具)
+     * API Contract: PATCH /api/orders/:orderId/confirm-receipt (Confirm receipt and release vehicle)
      */
     @PatchMapping("/{orderNumber}/confirm-receipt")
     public ResponseEntity<Map<String, Object>> confirmReceipt(
@@ -138,28 +137,5 @@ public class OrderController {
         res.put("orderId", order.getOrderNumber());
         res.put("status", "DELIVERED");
         return ResponseEntity.ok(res);
-    }
-
-    /**
-     * 向下兼容的结账接口
-     */
-    @PostMapping("/checkout")
-    public ResponseEntity<CheckoutResponse> checkout(
-            @Valid @RequestBody CheckoutRequest request,
-            @AuthenticationPrincipal User currentUser
-    ) {
-        if (currentUser == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-        CheckoutResponse response = orderService.checkoutAndLockVehicle(request, currentUser);
-        return ResponseEntity.ok(response);
-    }
-
-    @GetMapping("/my")
-    public ResponseEntity<List<Order>> getMyOrders(@AuthenticationPrincipal User currentUser) {
-        if (currentUser == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-        return ResponseEntity.ok(orderService.getUserOrders(currentUser.getId()));
     }
 }

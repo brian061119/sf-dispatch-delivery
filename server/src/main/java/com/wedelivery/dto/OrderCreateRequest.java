@@ -27,7 +27,7 @@ public class OrderCreateRequest {
     @JsonProperty("package")
     private RecommendationContractDto.PackageDto packageInfo;
 
-    // 备用兼容字段名
+    // Fallback compatibility field name
     private RecommendationContractDto.PackageDto packageDetails;
 
     private String priority; // STANDARD | EXPRESS

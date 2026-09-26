@@ -23,7 +23,7 @@ public class MockPaymentServiceImpl implements PaymentService {
     public Payment processPayment(Long orderId, Long userId, BigDecimal amount, String cardNumber) {
         String cleanCard = cardNumber != null ? cardNumber.replaceAll("\\s+", "") : "";
 
-        // 模拟 0000 余额不足异常
+        // Mock insufficient balance scenario for cards ending with 0000
         if (cleanCard.endsWith("0000")) {
             log.warn("Mock Payment Declined: Card ending with 0000 has insufficient funds. OrderId: {}", orderId);
             Payment failedPayment = Payment.builder()
