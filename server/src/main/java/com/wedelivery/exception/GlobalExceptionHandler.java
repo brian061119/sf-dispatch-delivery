@@ -1,5 +1,6 @@
 package com.wedelivery.exception;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -12,38 +13,72 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * 统一把业务异常转换为对应的 HTTP 状态码和 JSON 错误体:
- * { "timestamp": ..., "status": 404, "error": "Not Found", "message": "..." }
+ * Global exception handler converting business and system exceptions to standard JSON responses:
+ * { "timestamp": ..., "status": 400, "error": "Bad Request", "message": "..." }
  */
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<Map<String, Object>> handleNotFound(ResourceNotFoundException e) {
+        log.warn("Resource not found: {}", e.getMessage());
         return error(HttpStatus.NOT_FOUND, e.getMessage());
     }
 
-    // 登录失败: 统一提示，不区分 "用户不存在" 与 "密码错误"，避免泄露已注册用户名
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<Map<String, Object>> handleBadCredentials(BadCredentialsException e) {
+        log.warn("Bad credentials login attempt: {}", e.getMessage());
         return error(HttpStatus.UNAUTHORIZED, "Invalid username or password.");
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Map<String, Object>> handleAccessDenied(AccessDeniedException e) {
+        log.warn("Access denied: {}", e.getMessage());
         return error(HttpStatus.FORBIDDEN, e.getMessage());
     }
 
-    // 请求参数不合法，如用户名/邮箱已被注册
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleBadRequest(IllegalArgumentException e) {
+        log.warn("Bad request: {}", e.getMessage());
         return error(HttpStatus.BAD_REQUEST, e.getMessage());
     }
 
-    // 与当前资源状态冲突，如所选站点暂无空闲载具
+    @ExceptionHandler(PaymentDeclinedException.class)
+    public ResponseEntity<Map<String, Object>> handlePaymentDeclined(PaymentDeclinedException ex) {
+        log.warn("Payment declined: {}", ex.getMessage());
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("timestamp", LocalDateTime.now().toString());
+        body.put("status", HttpStatus.PAYMENT_REQUIRED.value());
+        body.put("error", HttpStatus.PAYMENT_REQUIRED.getReasonPhrase());
+        body.put("code", "PAYMENT_DECLINED");
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.PAYMENT_REQUIRED).body(body);
+    }
+
+    @ExceptionHandler(NoVehicleAvailableException.class)
+    public ResponseEntity<Map<String, Object>> handleNoVehicleAvailable(NoVehicleAvailableException ex) {
+        log.warn("No vehicle available: {}", ex.getMessage());
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("timestamp", LocalDateTime.now().toString());
+        body.put("status", HttpStatus.CONFLICT.value());
+        body.put("error", HttpStatus.CONFLICT.getReasonPhrase());
+        body.put("code", "NO_VEHICLE_AVAILABLE");
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, Object>> handleConflict(IllegalStateException e) {
+        log.warn("Conflict state: {}", e.getMessage());
         return error(HttpStatus.CONFLICT, e.getMessage());
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, Object>> handleGenericException(Exception ex) {
+        log.error("Unhandled server exception: ", ex);
+        return error(HttpStatus.INTERNAL_SERVER_ERROR,
+                ex.getMessage() != null ? ex.getMessage() : "An unexpected server error occurred.");
     }
 
     private ResponseEntity<Map<String, Object>> error(HttpStatus status, String message) {

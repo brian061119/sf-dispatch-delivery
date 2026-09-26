@@ -1,23 +1,23 @@
 package com.wedelivery.dto;
 
-import com.wedelivery.entity.enums.OrderStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.math.BigDecimal;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class CheckoutResponse {
-    private String orderNumber;
+public class OrderCreateResponse {
+    private String orderId;
     private String trackingCode;
-    private OrderStatus status;
+    private String status;
+    private Integer estimatedTimeMinutes;
+    private BigDecimal estimatedCost;
     private String transactionNo;
     private String assignedVehicleCode;
-    private LocalDateTime estimatedDeliveryTime;
     private String message;
 }

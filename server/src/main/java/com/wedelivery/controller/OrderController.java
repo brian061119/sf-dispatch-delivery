@@ -1,21 +1,22 @@
 package com.wedelivery.controller;
 
-import com.wedelivery.dto.CheckoutRequest;
-import com.wedelivery.dto.CheckoutResponse;
-import com.wedelivery.dto.PlanOptionDto;
-import com.wedelivery.dto.QuoteRequest;
+import com.wedelivery.dto.OrderCreateRequest;
+import com.wedelivery.dto.OrderCreateResponse;
 import com.wedelivery.entity.Order;
 import com.wedelivery.entity.User;
+import com.wedelivery.entity.enums.OrderStatus;
 import com.wedelivery.service.OrderService;
-import com.wedelivery.service.RecommendationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import javax.validation.Valid;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -24,78 +25,52 @@ import java.util.stream.Collectors;
 public class OrderController {
 
     private final OrderService orderService;
-    private final RecommendationService recommendationService;
 
-    // 契约路径: POST /api/orders
+    /**
+     * API Contract: POST /api/orders (Create order and lock vehicle)
+     */
     @PostMapping
-    public ResponseEntity<Map<String, Object>> createOrderContract(
-            @RequestBody Map<String, Object> body,
+    public ResponseEntity<OrderCreateResponse> createOrder(
+            @Valid @RequestBody OrderCreateRequest request,
             @AuthenticationPrincipal User currentUser
     ) {
         if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-
-        String candidateId = (String) body.getOrDefault("candidateId", "CAND-BEST_VALUE");
-
-        // 服务端按同一份请求重新计算推荐并取用户所选方案：扣款价格、站点、载具类型与时间
-        // 均与推荐结果一致，不信任客户端传入的价格。方案已不可用时返回 409。
-        RecommendationService.SelectedPlan selected = recommendationService
-                .resolveContractCandidate(body, currentUser, candidateId)
-                .orElseThrow(() -> new IllegalStateException(
-                        "Selected plan " + candidateId + " is no longer available. Please refresh the recommendations."));
-        QuoteRequest quote = selected.getRequest();
-        PlanOptionDto plan = selected.getPlan();
-
-        CheckoutRequest req = CheckoutRequest.builder()
-                .planType(plan.getPlanType())
-                .vehicleType(plan.getVehicleType())
-                .stationId(plan.getStationId())
-                .pickupAddress(quote.getPickupAddress())
-                .pickupLat(quote.getPickupLat())
-                .pickupLng(quote.getPickupLng())
-                .dropoffAddress(quote.getDropoffAddress())
-                .dropoffLat(quote.getDropoffLat())
-                .dropoffLng(quote.getDropoffLng())
-                .packageWeight(quote.getPackageWeight())
-                .packageVolume(quote.getPackageVolume())
-                .totalDistance(plan.getTotalDistance())
-                .originPrice(plan.getOriginPrice())
-                .discountAmount(plan.getDiscountAmount())
-                .finalPrice(plan.getFinalPrice())
-                .scheduledStartTime(plan.getScheduledStartTime())
-                .estimatedDeliveryTime(plan.getEstimatedDeliveryTime())
-                .cardNumber("4532 8901 2345 6789") // 模拟支付卡号
-                .build();
-
-        CheckoutResponse response = orderService.checkoutAndLockVehicle(req, currentUser);
-
-        Map<String, Object> res = new HashMap<>();
-        res.put("orderId", response.getOrderNumber());
-        res.put("trackingCode", response.getTrackingCode());
-        res.put("status", "PENDING");
-        res.put("estimatedTimeMinutes", plan.getEstimatedMinutes());
-        res.put("estimatedCost", plan.getFinalPrice());
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(res);
+        OrderCreateResponse response = orderService.createOrder(request, currentUser);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    // 契约路径: GET /api/orders (获取订单列表)
+    /**
+     * API Contract: GET /api/orders (Get current user's order list)
+     */
     @GetMapping
     public ResponseEntity<Map<String, Object>> getOrdersContract(@AuthenticationPrincipal User currentUser) {
-        List<Order> orders;
-        if (currentUser != null) {
-            orders = orderService.getUserOrders(currentUser.getId());
-        } else {
-            orders = Collections.emptyList();
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+
+        List<Order> orders = orderService.getUserOrders(currentUser.getId());
 
         List<Map<String, Object>> orderList = orders.stream().map(o -> {
             Map<String, Object> m = new HashMap<>();
             m.put("orderId", o.getOrderNumber());
             m.put("trackingCode", o.getTrackingCode());
-            m.put("status", o.getStatus().name());
-            m.put("createdAt", o.getCreatedAt().format(DateTimeFormatter.ISO_DATE_TIME));
+
+            // External contract status mapping: PENDING | IN_TRANSIT | DELIVERED | CANCELLED
+            String contractStatus;
+            if (o.getStatus() == OrderStatus.DELIVERED) {
+                contractStatus = "DELIVERED";
+            } else if (o.getStatus() == OrderStatus.CANCELLED) {
+                contractStatus = "CANCELLED";
+            } else if (o.getStatus() == OrderStatus.IN_TRANSIT) {
+                contractStatus = "IN_TRANSIT";
+            } else {
+                contractStatus = "PENDING";
+            }
+            m.put("status", contractStatus);
+            m.put("detailStatus", o.getStatus().name());
+            m.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().format(DateTimeFormatter.ISO_DATE_TIME) : "");
             m.put("packageDescription", o.getPickupAddress() + " -> " + o.getDropoffAddress());
             m.put("estimatedCost", o.getFinalPrice());
             return m;
@@ -106,19 +81,9 @@ public class OrderController {
         return ResponseEntity.ok(res);
     }
 
-    // 契约路径: PATCH /api/orders/:orderId/confirm-receipt (确认签收)
-    @PatchMapping("/{orderNumber}/confirm-receipt")
-    public ResponseEntity<Map<String, Object>> confirmReceipt(
-            @PathVariable String orderNumber,
-            @AuthenticationPrincipal User currentUser
-    ) {
-        Order order = orderService.confirmReceipt(orderNumber, currentUser);
-        Map<String, Object> res = new HashMap<>();
-        res.put("orderId", order.getOrderNumber());
-        res.put("status", "DELIVERED");
-        return ResponseEntity.ok(res);
-    }
-
+    /**
+     * API Contract: GET /api/orders/:orderId (Get order detail)
+     */
     @GetMapping("/{orderNumber}")
     public ResponseEntity<Order> getOrder(
             @PathVariable String orderNumber,
@@ -127,11 +92,19 @@ public class OrderController {
         return ResponseEntity.ok(orderService.getAccessibleOrder(orderNumber, currentUser));
     }
 
-    @GetMapping("/my")
-    public ResponseEntity<List<Order>> getMyOrders(@AuthenticationPrincipal User currentUser) {
-        if (currentUser == null) {
-            return ResponseEntity.status(401).build();
-        }
-        return ResponseEntity.ok(orderService.getUserOrders(currentUser.getId()));
+    /**
+     * API Contract: PATCH /api/orders/:orderId/confirm-receipt (Confirm receipt and release vehicle)
+     */
+    @PatchMapping("/{orderNumber}/confirm-receipt")
+    public ResponseEntity<Map<String, Object>> confirmReceipt(
+            @PathVariable String orderNumber,
+            @AuthenticationPrincipal User currentUser
+    ) {
+        Order order = orderService.confirmReceipt(orderNumber, currentUser);
+
+        Map<String, Object> res = new HashMap<>();
+        res.put("orderId", order.getOrderNumber());
+        res.put("status", "DELIVERED");
+        return ResponseEntity.ok(res);
     }
 }

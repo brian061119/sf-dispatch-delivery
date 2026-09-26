@@ -1,13 +1,14 @@
 package com.wedelivery.service;
 
-import com.wedelivery.dto.CheckoutRequest;
-import com.wedelivery.dto.CheckoutResponse;
+import com.wedelivery.dto.*;
 import com.wedelivery.entity.*;
 import com.wedelivery.entity.enums.OrderStatus;
+import com.wedelivery.entity.enums.PlanType;
 import com.wedelivery.entity.enums.Role;
-import com.wedelivery.exception.ResourceNotFoundException;
 import com.wedelivery.entity.enums.TrackingStage;
 import com.wedelivery.entity.enums.VehicleStatus;
+import com.wedelivery.exception.NoVehicleAvailableException;
+import com.wedelivery.exception.ResourceNotFoundException;
 import com.wedelivery.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -32,79 +34,151 @@ public class OrderService {
     private final StationRepository stationRepository;
     private final PaymentService paymentService;
     private final TrackingEventRepository trackingEventRepository;
+    private final RecommendationService recommendationService;
 
-    // 追踪码字符集: 去除易混淆的 0/O、1/I，共 32 个字符；16 位 ≈ 80 bit 随机性，无法枚举猜测
+    // Tracking code alphabet: excludes ambiguous 0/O, 1/I (32 characters; 16 chars ≈ 80 bits entropy)
     private static final String TRACKING_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private static final int TRACKING_CODE_LENGTH = 16;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
+    /**
+     * Core contract order creation:
+     * 1. Dynamically recalculate plan (server-side price validation to prevent tampering)
+     * 2. Atomically lock vehicle via pessimistic lock
+     * 3. Persist order entity (PENDING_PAYMENT)
+     * 4. Process mock payment (triggers rollback if card ends with 0000)
+     * 5. Transition vehicle to IN_DELIVERY and update real-time telemetry upon payment success
+     * 6. Record initial tracking milestone event (TO_PICKUP)
+     */
     @Transactional(rollbackFor = Exception.class)
-    public CheckoutResponse checkoutAndLockVehicle(CheckoutRequest req, User currentUser) {
-        log.info("Processing checkout for user: {}, plan: {}", currentUser.getUsername(), req.getPlanType());
+    public OrderCreateResponse createOrder(OrderCreateRequest req, User currentUser) {
+        log.info("Processing createOrder contract for user: {}, candidate: {}",
+                currentUser.getUsername(), req.getCandidateId());
 
-        // 1. 原子悲观锁锁定满足条件的可用载具
+        // 1. Extract and validate coordinates and package specifications
+        RecommendationContractDto.LocationDto pickup = req.getPickup();
+        RecommendationContractDto.LocationDto dropoff = req.getDropoff();
+        RecommendationContractDto.PackageDto pkg = req.getEffectivePackage();
+
+        if (pickup == null || pickup.getLat() == null || pickup.getLng() == null) {
+            log.warn("Pickup coordinates missing from request, falling back to Downtown SF default for demo resilience.");
+        }
+        if (dropoff == null || dropoff.getLat() == null || dropoff.getLng() == null) {
+            log.warn("Dropoff coordinates missing from request, falling back to Mission SF default for demo resilience.");
+        }
+
+        BigDecimal pLat = (pickup != null && pickup.getLat() != null) ? pickup.getLat() : new BigDecimal("37.7858");
+        BigDecimal pLng = (pickup != null && pickup.getLng() != null) ? pickup.getLng() : new BigDecimal("-122.4065");
+        BigDecimal dLat = (dropoff != null && dropoff.getLat() != null) ? dropoff.getLat() : new BigDecimal("37.7596");
+        BigDecimal dLng = (dropoff != null && dropoff.getLng() != null) ? dropoff.getLng() : new BigDecimal("-122.4269");
+
+        BigDecimal weight = (pkg != null && pkg.getWeightKg() != null) ? pkg.getWeightKg() : new BigDecimal("1.50");
+        BigDecimal volume = new BigDecimal("0.0200");
+        if (pkg != null && pkg.getLengthCm() != null && pkg.getWidthCm() != null && pkg.getHeightCm() != null) {
+            double l = pkg.getLengthCm().doubleValue() / 100.0;
+            double w = pkg.getWidthCm().doubleValue() / 100.0;
+            double h = pkg.getHeightCm().doubleValue() / 100.0;
+            volume = BigDecimal.valueOf(l * w * h).setScale(4, RoundingMode.HALF_UP);
+        }
+
+        // 2. Build QuoteRequest and invoke RecommendationService to recalculate plan
+        QuoteRequest quoteReq = QuoteRequest.builder()
+                .pickupAddress((pickup != null && pickup.getLine1() != null) ? pickup.getLine1() : "Market St, San Francisco")
+                .pickupLat(pLat)
+                .pickupLng(pLng)
+                .dropoffAddress((dropoff != null && dropoff.getLine1() != null) ? dropoff.getLine1() : "Mission St, San Francisco")
+                .dropoffLat(dLat)
+                .dropoffLng(dLng)
+                .packageWeight(weight)
+                .packageVolume(volume)
+                .build();
+
+        QuoteResponse quoteResponse = recommendationService.generateRecommendations(quoteReq, currentUser);
+        List<PlanOptionDto> availablePlans = quoteResponse.getPlans();
+        if (availablePlans == null || availablePlans.isEmpty()) {
+            throw new NoVehicleAvailableException("No delivery options available for this route or package specification.");
+        }
+
+        // 3. Match target plan type according to candidateId
+        String candId = req.getCandidateId() != null ? req.getCandidateId().trim() : "CAND-BEST_VALUE";
+        PlanOptionDto matchedPlan = availablePlans.stream()
+                .filter(p -> ("CAND-" + p.getPlanType().name()).equalsIgnoreCase(candId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                        "Selected plan " + candId + " is no longer available. Please refresh the recommendations."));
+
+        log.info("Matched plan: {} for station: {} (ID: {})",
+                matchedPlan.getPlanType(), matchedPlan.getStationName(), matchedPlan.getStationId());
+
+        // 4. Atomically query and lock first available vehicle using pessimistic lock
         List<Vehicle> availableVehicles = vehicleRepository.findAvailableVehiclesForLock(
-                req.getStationId(),
-                req.getVehicleType(),
+                matchedPlan.getStationId(),
+                matchedPlan.getVehicleType(),
                 VehicleStatus.IDLE,
-                new BigDecimal("20.00"), // 至少 20% 电量储备
-                req.getPackageWeight(),
-                req.getPackageVolume()
+                new BigDecimal("15.00"), // Minimum battery reserve
+                weight,
+                volume
         );
 
         if (availableVehicles.isEmpty()) {
-            throw new IllegalStateException("No available idle " + req.getVehicleType() + " at selected station. Please try another plan or retry later.");
+            throw new NoVehicleAvailableException("No available idle " + matchedPlan.getVehicleType()
+                    + " at station " + matchedPlan.getStationName() + ". Please retry or select another plan.");
         }
 
         Vehicle lockedVehicle = availableVehicles.get(0);
         log.info("Locked vehicle: {} (ID: {})", lockedVehicle.getVehicleCode(), lockedVehicle.getId());
 
-        // 2. 生成外部可见的订单号
+        // 5. Generate unique system order number and secure tracking code
         String orderNumber = "SFORD" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
                 + String.format("%03d", ThreadLocalRandom.current().nextInt(1000));
-
-        LocalDateTime startTime = req.getScheduledStartTime() != null ? req.getScheduledStartTime() : LocalDateTime.now();
-        LocalDateTime deliveryTime = req.getEstimatedDeliveryTime() != null ? req.getEstimatedDeliveryTime() : startTime.plusMinutes(30);
+        String trackingCode = generateTrackingCode();
 
         Order order = Order.builder()
                 .orderNumber(orderNumber)
-                .trackingCode(generateTrackingCode())
+                .trackingCode(trackingCode)
                 .userId(currentUser.getId())
-                .stationId(req.getStationId())
+                .stationId(matchedPlan.getStationId())
                 .vehicleId(lockedVehicle.getId())
-                .vehicleType(req.getVehicleType())
-                .planType(req.getPlanType())
+                .vehicleType(matchedPlan.getVehicleType())
+                .planType(matchedPlan.getPlanType())
                 .status(OrderStatus.PENDING_PAYMENT)
-                .isStationPickup(Boolean.TRUE.equals(req.getIsStationPickup()))
-                .pickupAddress(req.getPickupAddress())
-                .pickupLat(req.getPickupLat())
-                .pickupLng(req.getPickupLng())
-                .dropoffAddress(req.getDropoffAddress())
-                .dropoffLat(req.getDropoffLat())
-                .dropoffLng(req.getDropoffLng())
-                .packageWeight(req.getPackageWeight())
-                .packageVolume(req.getPackageVolume())
-                .totalDistance(req.getTotalDistance())
-                .originPrice(req.getOriginPrice())
-                .discountAmount(req.getDiscountAmount())
-                .finalPrice(req.getFinalPrice())
-                .scheduledStartTime(startTime)
-                .estimatedDeliveryTime(deliveryTime)
+                .isStationPickup(false)
+                .pickupAddress(quoteReq.getPickupAddress())
+                .pickupLat(pLat)
+                .pickupLng(pLng)
+                .dropoffAddress(quoteReq.getDropoffAddress())
+                .dropoffLat(dLat)
+                .dropoffLng(dLng)
+                .packageWeight(weight)
+                .packageVolume(volume)
+                .totalDistance(matchedPlan.getTotalDistance())
+                .originPrice(matchedPlan.getOriginPrice())
+                .discountAmount(matchedPlan.getDiscountAmount())
+                .finalPrice(matchedPlan.getFinalPrice())
+                .scheduledStartTime(matchedPlan.getScheduledStartTime())
+                .estimatedDeliveryTime(matchedPlan.getEstimatedDeliveryTime())
                 .build();
 
         order = orderRepository.save(order);
 
-        // 3. 执行 Mock 扣款事务 (若失败会自动抛异常触发整个事务回滚)
+        // 6. Extract payment credential (supports mock fallback for testing)
+        String cardIdentifier = req.getPaymentMethodId() != null && !req.getPaymentMethodId().isBlank()
+                ? req.getPaymentMethodId()
+                : req.getCardNumber();
+
+        if (cardIdentifier == null || cardIdentifier.isBlank()) {
+            cardIdentifier = "pm_mock_card";
+        }
+
         Payment payment = paymentService.processPayment(
                 order.getId(),
                 currentUser.getId(),
-                req.getFinalPrice(),
-                req.getCardNumber()
+                order.getFinalPrice(),
+                cardIdentifier
         );
 
-        // 4. 扣款成功：载具转入「配送中」，并同步机器实时信息
-        //    位置编码置 0（已离开站点），速度取该机默认最大速度，位置暂记为出站点
-        Station station = stationRepository.findById(req.getStationId()).orElse(null);
+        // 7. Payment succeeded: update vehicle to IN_DELIVERY and synchronize realtime machine state
+        Station station = stationRepository.findById(matchedPlan.getStationId()).orElse(null);
         LocalDateTime now = LocalDateTime.now();
 
         lockedVehicle.setStatus(VehicleStatus.IN_DELIVERY);
@@ -112,42 +186,119 @@ public class OrderService {
         lockedVehicle.setLocationCode(Vehicle.LOCATION_NOT_AT_STATION);
         lockedVehicle.setCurrentSpeed(lockedVehicle.getCruiseSpeed());
         lockedVehicle.setSpeedUpdatedAt(now);
-        lockedVehicle.setCurrentLat(station != null ? station.getLatitude() : req.getPickupLat());
-        lockedVehicle.setCurrentLng(station != null ? station.getLongitude() : req.getPickupLng());
+        lockedVehicle.setCurrentLat(station != null ? station.getLatitude() : pLat);
+        lockedVehicle.setCurrentLng(station != null ? station.getLongitude() : pLng);
         lockedVehicle.setPositionUpdatedAt(now);
         vehicleRepository.save(lockedVehicle);
 
         order.setStatus(OrderStatus.PAID);
         orderRepository.save(order);
 
-        // 5. 写入首个轨迹里程碑事件
-        BigDecimal initialLat = station != null ? station.getLatitude() : req.getPickupLat();
-        BigDecimal initialLng = station != null ? station.getLongitude() : req.getPickupLng();
+        // 8. Record initial tracking milestone event
+        BigDecimal initialLat = station != null ? station.getLatitude() : pLat;
+        BigDecimal initialLng = station != null ? station.getLongitude() : pLng;
 
         TrackingEvent initialEvent = TrackingEvent.builder()
                 .orderId(order.getId())
                 .stage(TrackingStage.TO_PICKUP)
-                .statusDescription("订单支付成功，已调度载具 " + lockedVehicle.getVehicleCode() + "，准备启航前往取件点。")
+                .statusDescription("Payment succeeded. Dispatched " + lockedVehicle.getVehicleCode() + ", en route to pickup location.")
                 .eventLat(initialLat)
                 .eventLng(initialLng)
-                .eventTime(LocalDateTime.now())
+                .eventTime(now)
                 .build();
         trackingEventRepository.save(initialEvent);
 
-        return CheckoutResponse.builder()
-                .orderNumber(order.getOrderNumber())
+        return OrderCreateResponse.builder()
+                .orderId(order.getOrderNumber())
                 .trackingCode(order.getTrackingCode())
-                .status(OrderStatus.PAID)
+                .status("PENDING")
+                .estimatedTimeMinutes(matchedPlan.getEstimatedMinutes())
+                .estimatedCost(order.getFinalPrice())
                 .transactionNo(payment.getTransactionNo())
                 .assignedVehicleCode(lockedVehicle.getVehicleCode())
-                .estimatedDeliveryTime(order.getEstimatedDeliveryTime())
-                .message("Order placed and vehicle locked successfully.")
+                .message("Order created and vehicle locked successfully.")
                 .build();
+    }
+
+    /**
+     * Delivery confirmation business closure:
+     * 1. Verify user authorization (only customer who placed order or ADMIN)
+     * 2. Update order status to DELIVERED and record actual delivery time
+     * 3. Release assigned vehicle back to IDLE
+     * 4. Record delivery completion tracking milestone
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public Order confirmReceipt(String orderNumber, User currentUser) {
+        Order order = getOrderByNumber(orderNumber);
+
+        if (currentUser != null && currentUser.getRole() != Role.ADMIN && !order.getUserId().equals(currentUser.getId())) {
+            throw new AccessDeniedException("Only the customer who placed order " + orderNumber + " can confirm receipt");
+        }
+
+        if (order.getStatus() == OrderStatus.DELIVERED) {
+            return order;
+        }
+
+        order.setStatus(OrderStatus.DELIVERED);
+        if (order.getActualDeliveryTime() == null) {
+            order.setActualDeliveryTime(LocalDateTime.now());
+        }
+        orderRepository.save(order);
+
+        // Release vehicle back to IDLE state
+        if (order.getVehicleId() != null) {
+            vehicleRepository.findById(order.getVehicleId()).ifPresent(v -> {
+                if (v.getStatus() == VehicleStatus.IN_DELIVERY) {
+                    LocalDateTime now = LocalDateTime.now();
+                    v.setStatus(VehicleStatus.IDLE);
+                    v.setStatusUpdatedAt(now);
+                    v.setCurrentSpeed(BigDecimal.ZERO);
+                    v.setSpeedUpdatedAt(now);
+                    vehicleRepository.save(v);
+                    log.info("Vehicle {} successfully released back to IDLE upon order {} delivery.",
+                            v.getVehicleCode(), order.getOrderNumber());
+                }
+            });
+        }
+
+        // Record delivery completion milestone event
+        TrackingEvent event = TrackingEvent.builder()
+                .orderId(order.getId())
+                .stage(TrackingStage.COMPLETED)
+                .statusDescription("Delivery confirmed by recipient. Order fulfilled successfully, vehicle returned and docked.")
+                .eventLat(order.getDropoffLat())
+                .eventLng(order.getDropoffLng())
+                .eventTime(LocalDateTime.now())
+                .build();
+        trackingEventRepository.save(event);
+
+        return order;
     }
 
     public Order getOrderByNumber(String orderNumber) {
         return orderRepository.findByOrderNumber(orderNumber)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderNumber));
+    }
+
+    /**
+     * Query order and verify access permission: only order owner or admin can view.
+     * Throws AccessDeniedException if not authorized (mapped to 403 by GlobalExceptionHandler).
+     */
+    public Order getAccessibleOrder(String orderNumber, User currentUser) {
+        Order order = getOrderByNumber(orderNumber);
+        if (currentUser == null) {
+            throw new AccessDeniedException("Authentication required to access order.");
+        }
+        boolean isOwner = order.getUserId().equals(currentUser.getId());
+        boolean isAdmin = currentUser.getRole() == Role.ADMIN;
+        if (!isOwner && !isAdmin) {
+            throw new AccessDeniedException("You do not have access to order " + orderNumber);
+        }
+        return order;
+    }
+
+    public List<Order> getUserOrders(Long userId) {
+        return orderRepository.findByUserIdOrderByCreatedAtDesc(userId);
     }
 
     private String generateTrackingCode() {
@@ -160,37 +311,5 @@ public class OrderService {
             code = sb.toString();
         } while (orderRepository.existsByTrackingCode(code));
         return code;
-    }
-
-    /**
-     * 查询订单并校验访问权限: 仅下单用户本人或管理员可查看。
-     * 无权限时抛出 AccessDeniedException，由 Spring Security 转换为 403。
-     */
-    public Order getAccessibleOrder(String orderNumber, User currentUser) {
-        Order order = getOrderByNumber(orderNumber);
-        boolean isOwner = order.getUserId().equals(currentUser.getId());
-        boolean isAdmin = currentUser.getRole() == Role.ADMIN;
-        if (!isOwner && !isAdmin) {
-            throw new AccessDeniedException("You do not have access to order " + orderNumber);
-        }
-        return order;
-    }
-
-    // 确认签收仅限下单用户本人 (管理员可查看但不能代签)
-    @Transactional
-    public Order confirmReceipt(String orderNumber, User currentUser) {
-        Order order = getOrderByNumber(orderNumber);
-        if (!order.getUserId().equals(currentUser.getId())) {
-            throw new AccessDeniedException("Only the customer who placed order " + orderNumber + " can confirm receipt");
-        }
-        order.setStatus(OrderStatus.DELIVERED);
-        if (order.getActualDeliveryTime() == null) {
-            order.setActualDeliveryTime(LocalDateTime.now());
-        }
-        return orderRepository.save(order);
-    }
-
-    public List<Order> getUserOrders(Long userId) {
-        return orderRepository.findByUserIdOrderByCreatedAtDesc(userId);
     }
 }
