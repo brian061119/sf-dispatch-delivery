@@ -1383,6 +1383,63 @@
           ]
         },
         {
+          "name": "Create order with declined card (ends with 0000) → 402",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "description": "Simulate card ending in 0000 triggering insufficient funds exception (402) and rolling back the transaction without locking a vehicle.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"candidateId\": \"CAND-BEST_VALUE\",\n  \"pickup\": {\n    \"line1\": \"Market St, San Francisco\",\n    \"lat\": 37.7858,\n    \"lng\": -122.4065\n  },\n  \"dropoff\": {\n    \"line1\": \"Mission St, San Francisco\",\n    \"lat\": 37.7596,\n    \"lng\": -122.4269\n  },\n  \"package\": {\n    \"description\": \"Test Package\",\n    \"weightKg\": 1.5\n  },\n  \"priority\": \"STANDARD\",\n  \"cardNumber\": \"4000 1234 5678 0000\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 402 Payment Required', () => pm.response.to.have.status(402));",
+                  "const b = pm.response.json();",
+                  "pm.test('error message indicates payment failure', () => {",
+                  "  pm.expect(b.message).to.include('insufficient funds');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "My orders (owner) include it",
           "request": {
             "method": "GET",

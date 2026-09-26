@@ -12,7 +12,7 @@ Each file is **self-contained** (logs in by itself, creates the order it needs) 
 | `tests/02-signup` | Register, `role: ADMIN` ignored, duplicate username/email → 400, missing password → 400 | 7 / 12 |
 | `tests/03-stations-vehicles` | Public station & vehicle reads, unknown vehicle → 404 | 9 / 14 |
 | `tests/04-recommendations-quote` | Recommendations (login required), public quote | 4 / 6 |
-| `tests/05-orders` | Create order, order lists, order detail & ownership (owner / other customer / admin / no login) | 14 / 25 |
+| `tests/05-orders` | Create order, declined card (402), order lists, order detail & ownership (owner / other customer / admin / no login) | 15 / 27 |
 | `tests/06-tracking` | Owner tracking by order number, public tracking by tracking code | 15 / 24 |
 | `tests/07-confirm-receipt` | Only the owner can confirm; saved; not reverted by tracking | 13 / 24 |
 | `tests/08-admin-dashboard` | Admin 200, customer 403, no login 401 | 5 / 7 |
