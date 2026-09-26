@@ -29,3 +29,7 @@ build/
 .env.local
 .env.*.local
 *.log
+
+# Postman app local workspace files (per-user, not project content)
+postman/.postman/
+postman/postman/

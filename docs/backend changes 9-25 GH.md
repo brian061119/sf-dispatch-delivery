@@ -198,14 +198,13 @@ The merged app was started once against RDS, which ran both migrations and added
 | Restart on an existing database | no duplicate seed data |
 
 ### Postman
-Two collections in `postman/` (import them via Postman → *Import*):
+All collections are in `postman/` — see `postman/README.md` for the full list.
 
-| Collection | Use it for |
-|---|---|
-| `WeDelivery-Backend-Tests.postman_collection.json` | **Full test suite** — 9 folders, 71 requests, 110 automatic checks (auth, public reads, recommendations, orders & ownership, tracking, confirm receipt, admin, dispatch writes). Run with *Run collection*; the Runner shows PASS/FAIL. Repeatable: vehicle changes are undone within the run. Verified 110/110 twice in a row on H2 and on PostgreSQL. |
-| `WeDelivery.postman_collection.json` | Quick manual walkthrough of the main flow (13 requests). |
+- **`postman/tests/`** — one collection per area (`01-login`, `02-signup`, `03-stations-vehicles`, `04-recommendations-quote`, `05-orders`, `06-tracking`, `07-confirm-receipt`, `08-admin-dashboard`, `09-dispatch-writes`). Each is self-contained (logs in by itself, creates the order it needs) and repeatable (cleans up after itself).
+- **`WeDelivery-Backend-Tests.postman_collection.json`** — the same tests in one run: 74 requests, 114 automatic checks.
+- **`WeDelivery.postman_collection.json`** — quick manual walkthrough of the main flow (13 requests).
 
-Both use `{{baseUrl}}` (default `http://localhost:8080`, change it under the collection's *Variables* tab). Each full-suite run creates 2 users and 1 order — fine locally (H2 is wiped on restart), but against the AWS database they stay.
+Verified with Newman: every per-area file passes on its own and twice in a row, all nine back-to-back, and the full suite twice (114/114). Each run of signup creates real users and 05–07 create real orders — fine locally (H2 is wiped on restart), but against the AWS database they stay.
 ---
 
 ## 9. API changes the frontend needs to know

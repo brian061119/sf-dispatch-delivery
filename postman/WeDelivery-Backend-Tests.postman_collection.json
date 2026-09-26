@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "WeDelivery Backend Tests",
-    "description": "Full backend test suite with automatic checks.\n\nHOW TO RUN\n1. Start the backend (IntelliJ → WeDeliveryApplication).\n2. Right-click this collection → Run collection → Run. Keep the folder order.\n3. Every request has tests; the Runner shows PASS/FAIL per check.\n\nbaseUrl defaults to http://localhost:8080 (collection → Variables).\nFolder 0 must run first — it logs in and stores tokens.\n\nDATA: runs are repeatable. Each run creates 2 users and 1 order; vehicle changes are undone. Against the local H2 database everything is wiped on restart. Against the AWS database (SPRING_PROFILES_ACTIVE=aws) the users and orders are real and stay there.",
+    "name": "WeDelivery Backend Tests (full suite)",
+    "description": "Full backend test suite — every area in one run. The same tests are also available one file per area in postman/tests/.\n\nFolder 0 must run first (logs in and stores tokens). Each run creates 2 users and 1 order; vehicle changes are undone. Against the AWS database (SPRING_PROFILES_ACTIVE=aws) those users and orders are real and stay there.\n\nHOW TO RUN: start the backend, then right-click the collection → Run collection → Run. It is self-contained (logs in by itself) and repeatable. baseUrl defaults to http://localhost:8080 (collection → Variables). Seeded accounts use password123.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -52,7 +52,6 @@
   "item": [
     {
       "name": "0. Setup — log in (run first)",
-      "description": "Logs in the three seeded accounts and stores their tokens. All accounts use password123.\n- adminToken: admin (ADMIN)\n- ownerToken: vip_user — places the test order\n- customerToken: normal_user — the 'other customer' used for 403 checks",
       "item": [
         {
           "name": "Login admin",
@@ -207,8 +206,271 @@
       ]
     },
     {
-      "name": "1. Auth — signup, login, /me",
-      "description": "",
+      "name": "1. Login & /me",
+      "item": [
+        {
+          "name": "Login wrong password → 401",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"wrong\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401 Unauthorized', () => pm.response.to.have.status(401));",
+                  "pm.test('generic login error message', () => pm.expect(pm.response.json().message).to.eql('Invalid username or password.'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login unknown user → 401 (same message)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"ghost_user_xyz\",\n  \"password\": \"x\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401 Unauthorized', () => pm.response.to.have.status(401));",
+                  "pm.test('generic login error message', () => pm.expect(pm.response.json().message).to.eql('Invalid username or password.'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login missing password → 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400 Bad Request', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Me (logged in)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200 OK', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('is vip_user', () => pm.expect(b.username).to.eql('vip_user'));",
+                  "pm.test('no password hash', () => pm.expect(pm.response.text()).to.not.include('passwordHash'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Me without login → 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401 Unauthorized', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Me with a junk token → 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "junk.token.value",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401 Unauthorized', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Signup",
       "item": [
         {
           "name": "Register new user",
@@ -234,7 +496,7 @@
                 "register"
               ]
             },
-            "description": "Uses a unique username each run (pm_<timestamp>). Note: against the AWS database this creates a real user every run.",
+            "description": "Unique username each run (pm_<timestamp>). Against the AWS database this creates a real user every run.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"username\": \"pm_{{uniq}}\",\n  \"password\": \"pass123\",\n  \"email\": \"pm_{{uniq}}@example.com\",\n  \"firstName\": \"Postman\",\n  \"lastName\": \"Test\"\n}",
@@ -265,6 +527,53 @@
                   "pm.test('returns a token', () => pm.expect(b.token).to.be.a('string').and.not.empty);",
                   "pm.test('new users are USER', () => pm.expect(b.user.role).to.eql('USER'));",
                   "pm.collectionVariables.set('newUser', 'pm_' + pm.collectionVariables.get('uniq'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login as the new user",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{newUser}}\",\n  \"password\": \"pass123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200 OK', () => pm.response.to.have.status(200));"
                 ]
               }
             }
@@ -409,6 +718,54 @@
           ]
         },
         {
+          "name": "Register duplicate email → 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"pmdup_{{uniq}}\",\n  \"password\": \"pass123\",\n  \"email\": \"pm_{{uniq}}@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('says email registered', () => pm.expect(pm.response.json().message).to.include('Email'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Register missing password → 400",
           "request": {
             "method": "POST",
@@ -454,231 +811,11 @@
               }
             }
           ]
-        },
-        {
-          "name": "Login new user",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "auth": {
-              "type": "noauth"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/login",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "login"
-              ]
-            },
-            "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"username\": \"{{newUser}}\",\n  \"password\": \"pass123\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status 200 OK', () => pm.response.to.have.status(200));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Login wrong password → 401",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "auth": {
-              "type": "noauth"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/login",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "login"
-              ]
-            },
-            "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"wrong\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status 401 Unauthorized', () => pm.response.to.have.status(401));",
-                  "pm.test('generic login error message', () => pm.expect(pm.response.json().message).to.eql('Invalid username or password.'));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Login unknown user → 401 (same message)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "auth": {
-              "type": "noauth"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/login",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "login"
-              ]
-            },
-            "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"username\": \"ghost_user_xyz\",\n  \"password\": \"x\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status 401 Unauthorized', () => pm.response.to.have.status(401));",
-                  "pm.test('generic login error message', () => pm.expect(pm.response.json().message).to.eql('Invalid username or password.'));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Me (logged in)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{ownerToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/me",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "me"
-              ]
-            },
-            "description": ""
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status 200 OK', () => pm.response.to.have.status(200));",
-                  "const b = pm.response.json();",
-                  "pm.test('is vip_user', () => pm.expect(b.username).to.eql('vip_user'));",
-                  "pm.test('no password hash', () => pm.expect(pm.response.text()).to.not.include('passwordHash'));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Me without login → 401",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "auth": {
-              "type": "noauth"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/me",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "me"
-              ]
-            },
-            "description": ""
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status 401 Unauthorized', () => pm.response.to.have.status(401));"
-                ]
-              }
-            }
-          ]
         }
       ]
     },
     {
-      "name": "2. Stations & vehicles — public reads",
-      "description": "",
+      "name": "3. Stations & vehicles — public reads",
       "item": [
         {
           "name": "List stations",
@@ -987,8 +1124,7 @@
       ]
     },
     {
-      "name": "3. Recommendations & quote",
-      "description": "",
+      "name": "4. Recommendations & quote",
       "item": [
         {
           "name": "Get recommendations",
@@ -1140,8 +1276,7 @@
       ]
     },
     {
-      "name": "4. Orders — create, list, detail, ownership",
-      "description": "vip_user places the order; normal_user is 'another customer'. Robot orders use station 1; the vehicle is released again in folder 8 (simulate tick), so the collection can be run repeatedly.",
+      "name": "5. Orders — create, list, detail, ownership",
       "item": [
         {
           "name": "Create order (owner)",
@@ -1173,7 +1308,7 @@
                 "orders"
               ]
             },
-            "description": "If this returns 409, station 1 has no idle robot: run folder 8 (simulate tick) or restart the local app.",
+            "description": "If this returns 409, station 1 has no idle robot: run 09-dispatch-writes (simulate tick) or restart the local app.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"candidateId\": \"CAND-BEST_VALUE\",\n  \"pickup\": {\n    \"line1\": \"Market St, San Francisco\",\n    \"city\": \"San Francisco\",\n    \"zip\": \"94103\",\n    \"lat\": 37.7858,\n    \"lng\": -122.4065\n  },\n  \"dropoff\": {\n    \"line1\": \"Mission St, San Francisco\",\n    \"city\": \"San Francisco\",\n    \"zip\": \"94110\",\n    \"lat\": 37.7596,\n    \"lng\": -122.4269\n  },\n  \"package\": {\n    \"description\": \"Documents\",\n    \"weightKg\": 1.5,\n    \"lengthCm\": 30,\n    \"widthCm\": 20,\n    \"heightCm\": 10,\n    \"fragile\": false\n  },\n  \"priority\": \"STANDARD\",\n  \"paymentMethodId\": \"pm_mock\"\n}",
@@ -1527,8 +1662,7 @@
       ]
     },
     {
-      "name": "5. Tracking — owner and public",
-      "description": "",
+      "name": "6. Tracking — owner and public",
       "item": [
         {
           "name": "Owner tracking",
@@ -1878,8 +2012,7 @@
       ]
     },
     {
-      "name": "6. Confirm receipt — owner only",
-      "description": "",
+      "name": "7. Confirm receipt — owner only",
       "item": [
         {
           "name": "Confirm (other customer) → 403",
@@ -2209,8 +2342,7 @@
       ]
     },
     {
-      "name": "7. Admin dashboard",
-      "description": "",
+      "name": "8. Admin dashboard",
       "item": [
         {
           "name": "Dashboard (admin)",
@@ -2328,8 +2460,7 @@
       ]
     },
     {
-      "name": "8. Dispatch writes — admin only",
-      "description": "Changes vehicle data, but every change is undone within the folder (DRONE-SS-02 is set to FAULT and back to IDLE; imports only send invalid rows, which are skipped). The simulate tick also returns the vehicle from folder 4 to its station.",
+      "name": "9. Dispatch writes — admin only (also frees the order's vehicle)",
       "item": [
         {
           "name": "Tick without login → 401",
