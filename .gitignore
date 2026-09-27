@@ -24,8 +24,10 @@ yarn-error.log*
 .eslintcache
 dist/
 build/
+.vite/
 
 # Environment / Temp
+.env
 .env.local
 .env.*.local
 *.log

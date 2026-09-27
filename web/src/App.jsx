@@ -1,72 +1,82 @@
-import { useEffect, useState } from 'react';
-import { getOrders } from './orders';
-
-const statusMeta = {
-  IN_TRANSIT: { label: 'In transit', className: 'status-transit' },
-  DELIVERED: { label: 'Delivered', className: 'status-delivered' },
-  CANCELLED: { label: 'Cancelled', className: 'status-cancelled' },
-  PENDING: { label: 'Pending', className: 'status-pending' },
-};
-
-function Vehicle({ type }) {
-  return <span className="vehicle">{type === 'Robot' ? '🤖' : '🚁'} {type}</span>;
-}
-
-export default function App() {
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    getOrders().then((items) => setOrders(items)).finally(() => setLoading(false));
-  }, []);
-
-  function logout() {
-    localStorage.removeItem('token');
-    window.location.assign('/login');
+import { Layout } from "antd";
+import { Navigate, Route, Routes } from "react-router-dom";
+import { AppHeader } from "./components/AppHeader";
+import { isAuthed } from "./lib/auth";
+import Dashboard from "./pages/Dashboard";
+import GuestTrack from "./pages/GuestTrack";
+import Login from "./pages/Login";
+import OrderDetail from "./pages/OrderDetail";
+import OrderHistory from "./pages/OrderHistory";
+import OrderWizard from "./pages/OrderWizard";
+import Register from "./pages/Register";
+import Tracking from "./pages/Tracking";
+function RequireAuth({ children }) {
+  // social-ai style: the frontend trusts token PRESENCE (any string counts) —
+  // the backend is the one that validates it on real API calls. During the demo
+  // phase (Login/Register still stubs) you can "log in" manually: DevTools →
+  // Application → Local Storage → set  token = anything  → refresh.
+  // PUBLIC routes (never guarded): /login, /register, /track, /tracking/:orderId
+  // (guest order lookup — the order number itself is the credential).
+  if (!isAuthed()) {
+    return <Navigate to="/login" replace />;
   }
 
+  return isAuthed() ? <>{children}</> : <Navigate to="/login" replace />;
+}
+export default function App() {
   return (
-    <div className="app-shell">
-      <header className="topbar">
-        <a className="brand" href="/">Dispatch &amp; Delivery</a>
-        <button className="logout" type="button" onClick={logout}>LOG OUT</button>
-      </header>
-
-      <main className="page-content">
-        <h1>My Orders</h1>
-        <section className="orders-card" aria-label="Order history">
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>运单号</th><th>日期</th><th>包裹</th><th>载具</th><th>状态</th><th>金额</th><th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading && <tr><td className="message" colSpan="7">Loading orders…</td></tr>}
-                {!loading && orders.length === 0 && <tr><td className="message" colSpan="7">No orders yet.</td></tr>}
-                {!loading && orders.map((order) => {
-                  const meta = statusMeta[order.status] ?? statusMeta.PENDING;
-                  const isCancelled = order.status === 'CANCELLED';
-                  return <tr key={order.id} className={isCancelled ? 'cancelled-row' : ''}>
-                    <td>{order.id}</td>
-                    <td>{order.date}</td>
-                    <td>{order.packageName} · {order.weight}</td>
-                    <td><Vehicle type={order.vehicle} /></td>
-                    <td><span className={`status ${meta.className}`}>{meta.label}</span></td>
-                    <td>${order.amount.toFixed(2)}</td>
-                    <td>{order.status === 'IN_TRANSIT' ? <a href={`/orders/${order.id}/tracking`}>Track <span aria-hidden="true">→</span></a> : order.status === 'DELIVERED' ? <a href={`/orders/${order.id}/review`}>Feedback</a> : <span className="muted">—</span>}</td>
-                  </tr>;
-                })}
-              </tbody>
-            </table>
-          </div>
-          <nav className="pagination" aria-label="Pagination">
-            <button className="active" type="button" aria-current="page">1</button>
-            <button type="button">2</button><button type="button">3</button><span>…</span>
-          </nav>
-        </section>
-      </main>
-    </div>
+    <Layout style={{ minHeight: "100vh" }}>
+      <AppHeader />
+      <Layout.Content
+        style={{ padding: 24, maxWidth: 1100, margin: "0 auto", width: "100%" }}
+      >
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/track" element={<GuestTrack />} />
+          <Route
+            path="/dashboard"
+            element={
+              <RequireAuth>
+                <Dashboard />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/orders"
+            element={
+              <RequireAuth>
+                <OrderHistory />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/order/new"
+            element={
+              <RequireAuth>
+                <OrderWizard />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/order/:orderId"
+            element={
+              <RequireAuth>
+                <OrderDetail />
+              </RequireAuth>
+            }
+          />
+          <Route path="/tracking/:orderId" element={<Tracking />} />
+          {/* Landing page is auth-aware (WeDelivery/FedEx model): guests land on the
+              public tracking lookup, logged-in users land on their dashboard. */}
+          <Route
+            path="*"
+            element={
+              <Navigate to={isAuthed() ? "/dashboard" : "/track"} replace />
+            }
+          />
+        </Routes>
+      </Layout.Content>
+    </Layout>
   );
 }
