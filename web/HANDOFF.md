@@ -33,7 +33,7 @@ VITE_MOCK=1 npm run dev          # mock mode, no backend needed (PowerShell: $en
 | **Ziyuan Xu** | `Login.jsx`, `Register.jsx` | `/login`, `/register` | `api/auth.js`: `login` `register` `logout` `getMe` | Form validation; errors surfaced; success → `/dashboard`; refresh stays logged in (**register body is contract-TBD — confirm first**) |
 | **Zihang Cao** | `Dashboard.jsx`, `OrderWizard.jsx`, `OrderHistory.jsx` | `/dashboard`, `/order/new`, `/orders` | `api/recommendation.js`: `getRecommendations`; `api/order.js`: `createOrder` `getOrders`; `api/station.js`: `getStations` | 4-step wizard completes an order; map click-to-pick fills lat/lng; step-4 summary card; history pagination usable |
 | **Y** | `OrderDetail.jsx` | `/order/:orderId` | `api/order.js`: `getOrder` `confirmReceipt` `submitReview` | Detail displayed (**body is contract-TBD** — render with optional chaining); receipt button state correct; review feedback shown |
-| **Yuning Zhang** | `Tracking.jsx`, `GuestTrack.jsx` | `/tracking/:orderId`, `/track` (public) | `api/tracking.js`: `getTracking` | Demo spec: StatusBadge + StatusTimeline + MapView courier dot; poll every 5s ONLY while PENDING/IN_TRANSIT, stop at DELIVERED/CANCELLED (page stays viewable); guests see "Log in to manage this order" — never link guests to `/order/:id`. GuestTrack: order-number form → `/tracking/:orderId`; both routes stay public |
+| **Yuning Zhang** | `Tracking.jsx`, `GuestTrack.jsx` | `/tracking/:orderId`, `/track` (public) | `api/tracking.js`: `getTracking` (login) `getTrackingByCode` (public) | Demo spec: StatusBadge + StatusTimeline + MapView courier dot; poll every 5s ONLY while PENDING/IN_TRANSIT, stop at DELIVERED/CANCELLED (page stays viewable); guests see "Log in to manage this order" — never link guests to `/order/:id`. GuestTrack: **trackingCode form → `getTrackingByCode(code)`** (backend added the public endpoint; see §5); both routes stay public |
 
 Every page file's header comment names its owner and wireframe (`wireframes/NN_*.svg`).
 Write your real page **in the same file** — the route in `App.jsx` already points at it.
@@ -61,16 +61,21 @@ Write your real page **in the same file** — the route in `App.jsx` already poi
 
 ## 5. Open items for the backend (next meeting)
 
-- [ ] `POST /api/auth/register` body + response (TBD) — frontend assumes `{username,password,email}` → `{token,user}`
-- [ ] `GET /api/orders/:orderId` full body (TBD) — OrderDetail renders defensively until defined
-- [ ] 4-state model has no "awaiting signature" state — confirm-receipt flips straight to DELIVERED; intended?
-- [ ] No cancel-order endpoint — wireframe has a Cancel button; add `POST /api/orders/:id/cancel` or cut the feature
-- [ ] `GET /api/stations` response (TBD) — needed for wizard step-1 map
-- [ ] Payment-failure vs order-failure error shapes (TBD)
-- [ ] `POST /api/ai/parse` (P1 frontend proposal, not in contract) — which backend owner?
+> Backend integrated 2026-09-27 (main @ 1db0c22). Updated statuses below.
+
+- [ ] `POST /api/auth/register` body + response (TBD) — frontend assumes `{username,password,email}` → `{token,user}` — **partially resolved: `POST /api/auth/register` exists, body = `{username,password}` (AuthRequest); email not accepted yet**
+- [ ] `GET /api/orders/:orderId` full body (TBD) — backend returns the raw `Order` entity; OrderDetail keeps rendering defensively until field names are contract-frozen
+- [ ] 4-state model has no "awaiting signature" state — confirm-receipt flips straight to DELIVERED; intended? — **still open (backend has 6 internal states, external mapping keeps 4)**
+- [ ] No cancel-order endpoint — still true on main; wireframe Cancel button stays parked
+- [ ] `GET /api/stations` response — **resolved: returns `StationInfoDto[]`** (id/name/lat/lng/...); wizard map can consume it
+- [ ] Payment-failure vs order-failure error shapes — **partially resolved: declined payment → HTTP 402 with rollback (see Postman 02-orders collection); order-error shape still open**
+- [ ] `POST /api/ai/parse` (P1 frontend proposal, not in contract) — which backend owner? — still unclaimed
 - [ ] `POST /api/auth/logout`: server-side invalidation or client-side only? (TBD)
-- [ ] Anonymous access to `GET /api/orders/:orderId/tracking` (guest lookup at `/track`): exempt from JWT, no PII in response, rate-limit. Order DETAIL stays behind auth
-- [ ] Enum double-check: `ROBOT|DRONE`; `PENDING|IN_TRANSIT|DELIVERED|CANCELLED`; `STANDARD|EXPRESS`
+- [x] ~~Anonymous access to tracking (guest lookup at `/track`)~~ — **RESOLVED 2026-09-26: `GET /api/tracking/:trackingCode` is public (SecurityConfig permitAll). The by-order-number endpoint stays behind JWT by design (order numbers are guessable). Frontend: use `getTrackingByCode`.**
+- [x] ~~Enum double-check~~ — **backend confirmed: vehicleType `ROBOT|DRONE`, priority `STANDARD|EXPRESS`. BUT the order status enum is 6-state internally (`PENDING_PAYMENT, PAID, PICKING_UP, IN_TRANSIT, DELIVERED, CANCELLED`); contract consumers get the 4-state via server-side mapping (list) / frontend normalization (tracking).**
+- [ ] **NEW: `status` in the tracking response is still the RAW internal enum** (`PICKING_UP` etc. can reach the client). Frontend normalizes it today; ask backend to map it in `TrackingController.toContractResponse` (same as `getOrdersContract` does) for a clean contract.
+- [ ] **NEW: `POST /api/orders/:orderId/review` is in the contract but NOT implemented on main** — `submitReview` will 404 against the real backend until then; keep the review UI gated/disabled in demo.
+- [ ] **NEW: branch `boyuan/tracking` is an older, pre-contract tracking v1** (anonymous by order number, raw DTO shape, `GET /api/tracking/{orderNumber}` by order number instead of tracking code). It conflicts with main's tracking v2. Recommendation: **do not merge as-is**; rebase its milestone-backfill tests onto main's controller.
 
 ## 6. Who to ask
 

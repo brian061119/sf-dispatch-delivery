@@ -21,6 +21,15 @@
 
 /** Delivery priority. @typedef {'STANDARD'|'EXPRESS'} Priority */
 
+/**
+ * Backend INTERNAL order state machine (OrderStatus.java on main, 2026-09-26):
+ * 6 states. The list endpoint (GET /api/orders) maps them onto the contract
+ * 4-state model and exposes the raw one as `detailStatus`; the tracking
+ * endpoint still returns the RAW state in `status` — the frontend api layer
+ * normalizes it (see api/tracking.js normalizeStatus).
+ * @typedef {'PENDING_PAYMENT'|'PAID'|'PICKING_UP'|'IN_TRANSIT'|'DELIVERED'|'CANCELLED'} InternalOrderStatus
+ */
+
 // ---- Base shapes (contract) ----------------------------------------------------
 
 /**
@@ -72,9 +81,15 @@
 /** POST /api/orders response (201).
  * ⚠️ Contract TBD: error shapes for payment failure vs. order failure are not
  * defined; the frontend needs to distinguish them for messaging.
- * @typedef {{ orderId: string, status: OrderStatus, estimatedTimeMinutes: number, estimatedCost: number }} CreateOrderResponse */
+ * trackingCode: added by backend 2026-09-26 — required for the PUBLIC guest
+ * tracking endpoint (GET /api/tracking/:trackingCode). Persist it alongside
+ * orderId after creation.
+ * @typedef {{ orderId: string, trackingCode?: string, status: OrderStatus, estimatedTimeMinutes: number, estimatedCost: number, transactionNo?: string, assignedVehicleCode?: string, message?: string }} CreateOrderResponse */
 
-/** GET /api/orders list item. @typedef {{ orderId: string, status: OrderStatus, createdAt: string, packageDescription: string, estimatedCost: number }} OrderSummary */
+/** GET /api/orders list item. `status` is the contract 4-state; `detailStatus`
+ * is the backend's raw internal state (see InternalOrderStatus). `trackingCode`
+ * enables guest tracking without login.
+ * @typedef {{ orderId: string, status: OrderStatus, detailStatus?: InternalOrderStatus, trackingCode?: string, createdAt: string, packageDescription: string, estimatedCost: number }} OrderSummary */
 
 /** GET /api/orders response (200). @typedef {{ orders: OrderSummary[] }} OrderListResponse */
 
@@ -106,11 +121,31 @@
 
 // ---- Tracking (Yuning Zhang) ---------------------------------------------------
 
-/** GET /api/orders/:orderId/tracking response (200) — this is what the Tracking
- * page polls every 5s.
- * The contract has no route-history array; if a route polyline is needed, file a
- * request with the backend (open item).
- * @typedef {{ orderId: string, status: OrderStatus, vehicleType: VehicleType, currentLat: number, currentLng: number, estimatedArrival: string }} TrackingResponse */
+/**
+ * One milestone in the tracking timeline. Backend TrackingStage enum:
+ * TO_PICKUP | TO_DROPOFF | RETURNING | COMPLETED.
+ * @typedef {{ stage: 'TO_PICKUP'|'TO_DROPOFF'|'RETURNING'|'COMPLETED', statusDescription: string, eventLat?: number, eventLng?: number, eventTime?: string }} TrackingEvent
+ */
+
+/**
+ * GET /api/orders/:orderId/tracking response (200) — what the Tracking page
+ * polls every 5s. REQUIRES LOGIN (only the order owner or an admin; the order
+ * number alone is not a public credential — backend decision 2026-09-26).
+ * `status` may arrive as the RAW internal state (PICKING_UP / PENDING_PAYMENT
+ * / PAID) — api/tracking.js normalizeStatus() maps it onto the contract
+ * 4-state before it reaches components. detailStatus keeps the raw value.
+ * The extra progress fields (backend addition 2026-09-26) are optional: older
+ * contract consumers can ignore them.
+ * @typedef {{ orderId: string, status: OrderStatus, detailStatus?: InternalOrderStatus, vehicleType: VehicleType, currentLat: number, currentLng: number, estimatedArrival: string, progressPercent?: number, currentStageDescription?: string, events?: TrackingEvent[] }} TrackingResponse
+ */
+
+/**
+ * GET /api/tracking/:trackingCode response (200) — PUBLIC (no JWT), per
+ * SecurityConfig `GET /api/tracking/**` permitAll. Guests use this with the
+ * trackingCode from the order confirmation / order list. Same body shape as
+ * TrackingResponse (no PII beyond route position).
+ * @typedef {TrackingResponse} TrackByCodeResponse
+ */
 
 // ---- Stations ------------------------------------------------------------------
 

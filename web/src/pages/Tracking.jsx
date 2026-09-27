@@ -1,5 +1,10 @@
 // Owner: Yuning Zhang (tracking). Wireframe: wireframes/08_Tracking.svg
-// Placeholder: route works, implementation pending. Use api/tracking.js (getTracking).
+// Placeholder: route works, implementation pending. Use api/tracking.js:
+//  - getTracking(orderId)   — logged-in, GET /api/orders/:orderNumber/tracking
+//  - getTrackingByCode(code) — PUBLIC, GET /api/tracking/:trackingCode
+// Both are already normalized to the contract 4-state status by the api layer
+// (the raw backend state arrives as detailStatus — feed that to StatusBadge
+// if you want to show PICKING_UP etc.).
 // Demo-stage spec (agreed 2026-09-23): StatusBadge + StatusTimeline + MapView courier
 // position; poll every 5s ONLY while PENDING/IN_TRANSIT and STOP at
 // DELIVERED/CANCELLED (terminal pages stay viewable — no more polling).

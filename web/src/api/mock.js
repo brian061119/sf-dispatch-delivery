@@ -11,11 +11,13 @@ const inMin = (m) => new Date(Date.now() + m * 60_000).toISOString();
 // ---- seed data ---------------------------------------------------------------
 
 const orders = [
-    { orderId: 'WD-1001', status: 'IN_TRANSIT', createdAt: hourAgo(1), packageDescription: 'A 2kg book', estimatedCost: 6.5 },
-    { orderId: 'WD-1002', status: 'PENDING', createdAt: hourAgo(3), packageDescription: 'Documents envelope', estimatedCost: 4.25 },
-    { orderId: 'WD-1003', status: 'DELIVERED', createdAt: hourAgo(26), packageDescription: 'Birthday cake (fragile)', estimatedCost: 12.99 },
-    { orderId: 'WD-1004', status: 'CANCELLED', createdAt: hourAgo(30), packageDescription: 'Spare laptop charger', estimatedCost: 5.0 },
+    { orderId: 'WD-1001', status: 'IN_TRANSIT', detailStatus: 'IN_TRANSIT', trackingCode: 'TC-8ZK2QA', createdAt: hourAgo(1), packageDescription: 'A 2kg book', estimatedCost: 6.5 },
+    { orderId: 'WD-1002', status: 'PENDING', detailStatus: 'PICKING_UP', trackingCode: 'TC-3NB7XD', createdAt: hourAgo(3), packageDescription: 'Documents envelope', estimatedCost: 4.25 },
+    { orderId: 'WD-1003', status: 'DELIVERED', detailStatus: 'DELIVERED', trackingCode: 'TC-5RM9PL', createdAt: hourAgo(26), packageDescription: 'Birthday cake (fragile)', estimatedCost: 12.99 },
+    { orderId: 'WD-1004', status: 'CANCELLED', detailStatus: 'CANCELLED', trackingCode: 'TC-1QT4VB', createdAt: hourAgo(30), packageDescription: 'Spare laptop charger', estimatedCost: 5.0 },
 ];
+// WD-1002 exercises the internal-state mapping: the real backend reports
+// PICKING_UP (vehicle en route to pickup) while the contract status is PENDING.
 
 const details = {
     'WD-1001': {
@@ -86,8 +88,10 @@ export async function getRecommendations() {
 export async function createOrder(body) {
     await latency();
     const orderId = 'WD-' + Math.floor(1000 + Math.random() * 9000);
+    const trackingCode = 'TC-' + Math.random().toString(36).slice(2, 8).toUpperCase();
     const summary = {
-        orderId, status: 'PENDING', createdAt: new Date().toISOString(),
+        orderId, status: 'PENDING', detailStatus: 'PENDING_PAYMENT', trackingCode,
+        createdAt: new Date().toISOString(),
         packageDescription: body.package.description, estimatedCost: 6.5,
     };
     orders.unshift(summary);
@@ -96,7 +100,7 @@ export async function createOrder(body) {
         pickup: body.pickup, dropoff: body.dropoff, package: body.package,
         candidate: { candidateId: body.candidateId, vehicleType: 'ROBOT', stationName: 'SoMa Station' },
     };
-    return { orderId, status: 'PENDING', estimatedTimeMinutes: 35, estimatedCost: 6.5 };
+    return { orderId, trackingCode, status: 'PENDING', estimatedTimeMinutes: 35, estimatedCost: 6.5 };
 }
 
 export async function getOrders() {
@@ -135,7 +139,8 @@ export async function submitReview(orderId) {
 export async function getTracking(orderId) {
     await latency();
     const pos = drift();
-    const status = details[orderId]?.status ?? orders.find((o) => o.orderId === orderId)?.status ?? 'IN_TRANSIT';
+    const s = details[orderId] ?? orders.find((o) => o.orderId === orderId);
+    const status = s?.status ?? 'IN_TRANSIT';
     return {
         orderId,
         status: status === 'PENDING' ? 'IN_TRANSIT' : status,
@@ -143,7 +148,18 @@ export async function getTracking(orderId) {
         currentLat: pos.lat,
         currentLng: pos.lng,
         estimatedArrival: inMin(12),
+        progressPercent: Math.round(((Date.now() / 1000) % 300) / 3 * 10) / 10,
+        currentStageDescription: status === 'DELIVERED' ? '包裹已送达' : '载具正在配送途中',
+        events: [],
     };
+}
+
+// PUBLIC guest lookup by tracking code (mirrors GET /api/tracking/:code).
+export async function getTrackingByCode(trackingCode) {
+    await latency();
+    const hit = orders.find((o) => o.trackingCode === trackingCode);
+    if (!hit) throw Object.assign(new Error('tracking code not found'), { status: 404 });
+    return getTracking(hit.orderId);
 }
 
 // ---- stations / ai ------------------------------------------------------------------
