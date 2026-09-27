@@ -149,8 +149,11 @@
 
 // ---- Stations ------------------------------------------------------------------
 
-/** GET /api/stations response item. ⚠️ Contract TBD (pending StationRepository owner).
- * @typedef {{ stationId: string, name: string, address?: string, lat?: number, lng?: number }} Station */
+/** GET /api/stations response item.
+ * CONFIRMED 2026-09-26 by the dispatch module owner (no auth on /api/stations/**).
+ * Note the field names: `latitude` / `longitude` (not lat/lng), and `maxCapacity`
+ * is derived as totalDroneBays + totalRobotBays.
+ * @typedef {{ stationId: number, stationCode: string, name: string, address: string, latitude: number, longitude: number, contactPhone: string, totalDroneBays: number, totalRobotBays: number, maxCapacity: number }} Station */
 
 // ---- AI natural-language ordering (P1, NOT in contract) ------------------------
 

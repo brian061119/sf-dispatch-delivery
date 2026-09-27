@@ -2,6 +2,12 @@ import { http } from '../lib/http';
 import * as mock from './mock';
 // ---- Zihang Cao — order create + list ------------------------------------------
 // Contract: POST /api/orders (embedded payment: pay + create in ONE call, 201).
+// PRICING IS BACKEND-OWNED (confirmed 2026-09-26): send only candidateId + the
+// same pickup / dropoff / package used for POST /api/recommendations — NEVER a
+// price. The backend re-derives the candidate and charges its estimatedCost.
+// 409 "Selected plan <candidateId> is no longer available" → re-fetch
+// recommendations and let the user pick again; 409 also means no idle vehicle
+// could be locked at checkout. Handle these distinctly in the wizard.
 export async function createOrder(body) {
     if (import.meta.env.VITE_MOCK === '1') return mock.createOrder(body);
     const { data } = await http.post('/orders', body);
