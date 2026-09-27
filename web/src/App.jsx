@@ -16,7 +16,10 @@ function RequireAuth({ children }) {
   // phase (Login/Register still stubs) you can "log in" manually: DevTools →
   // Application → Local Storage → set  token = anything  → refresh.
   // PUBLIC routes (never guarded): /login, /register, /track, /tracking/:orderId
-  // (guest order lookup — the order number itself is the credential).
+  // UPDATED 2026-09-28: guests look up a delivery by trackingCode, NOT by order
+  // number. The backend made GET /api/tracking/:trackingCode public while
+  // GET /api/orders/:orderNumber/tracking now requires a JWT + ownership, so
+  // "the order number is the credential" is no longer true.
   if (!isAuthed()) {
     return <Navigate to="/login" replace />;
   }
