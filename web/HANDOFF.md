@@ -63,11 +63,11 @@ Write your real page **in the same file** — the route in `App.jsx` already poi
 
 > Backend integrated 2026-09-27 (main @ 1db0c22). Updated statuses below.
 
-- [ ] `POST /api/auth/register` body + response (TBD) — frontend assumes `{username,password,email}` → `{token,user}` — **partially resolved: `POST /api/auth/register` exists, body = `{username,password}` (AuthRequest); email not accepted yet**
+- [x] ~~`POST /api/auth/register` body + response~~ — **RESOLVED: `AuthRequest` accepts `username` + `password` (both `@NotBlank`) plus OPTIONAL `email` / `firstName` / `lastName`; `role` is ignored (self-signup is always `USER`). Email is stored and uniqueness-checked. Duplicate username or duplicate email → HTTP 400 `{"message": ...}` via `GlobalExceptionHandler`. Response `AuthResponse` = `{token, user{id,username,email,role}}`. Our Register page sending `{username,password,email}` is correct — no change needed.**
 - [ ] `GET /api/orders/:orderId` full body (TBD) — backend returns the raw `Order` entity; OrderDetail keeps rendering defensively until field names are contract-frozen
 - [ ] 4-state model has no "awaiting signature" state — confirm-receipt flips straight to DELIVERED; intended? — **still open (backend has 6 internal states, external mapping keeps 4)**
 - [ ] No cancel-order endpoint — still true on main; wireframe Cancel button stays parked
-- [ ] `GET /api/stations` response — **resolved: returns `StationInfoDto[]`** (id/name/lat/lng/...); wizard map can consume it
+- [x] ~~`GET /api/stations` response~~ — **resolved: `StationInfoDto[]` with `stationId / stationCode / name / address / latitude / longitude / contactPhone / totalDroneBays / totalRobotBays / maxCapacity` (note: `latitude`/`longitude`, NOT `lat`/`lng`). No auth required.**
 - [ ] Payment-failure vs order-failure error shapes — **partially resolved: declined payment → HTTP 402 with rollback (see Postman 02-orders collection); order-error shape still open**
 - [ ] `POST /api/ai/parse` (P1 frontend proposal, not in contract) — which backend owner? — still unclaimed
 - [ ] `POST /api/auth/logout`: server-side invalidation or client-side only? (TBD)
