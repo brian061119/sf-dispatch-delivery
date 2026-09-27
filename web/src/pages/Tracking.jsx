@@ -1,5 +1,12 @@
 // Owner: Yuning Zhang (tracking). Wireframe: wireframes/08_Tracking.svg
-// Placeholder: route works, implementation pending. Use api/tracking.js:
+//
+// SUPERSEDED 2026-09-28 — this file is no longer routed. The route
+// /tracking/:code now renders pages/GuestTrack.jsx, which already implements
+// everything listed below (StatusBadge + StatusTimeline + MapView, 5s polling
+// that stops at terminal states, public access by trackingCode).
+// Kept only so these notes are not lost; delete once Yuning confirms.
+//
+// Original placeholder: route works, implementation pending. Use api/tracking.js:
 //  - getTracking(orderId)   — logged-in, GET /api/orders/:orderNumber/tracking
 //  - getTrackingByCode(code) — PUBLIC, GET /api/tracking/:trackingCode
 // Both are already normalized to the contract 4-state status by the api layer

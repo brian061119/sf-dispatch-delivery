@@ -9,13 +9,12 @@ import OrderDetail from "./pages/OrderDetail";
 import OrderHistory from "./pages/OrderHistory";
 import OrderWizard from "./pages/OrderWizard";
 import Register from "./pages/Register";
-import Tracking from "./pages/Tracking";
 function RequireAuth({ children }) {
   // social-ai style: the frontend trusts token PRESENCE (any string counts) —
   // the backend is the one that validates it on real API calls. During the demo
   // phase (Login/Register still stubs) you can "log in" manually: DevTools →
   // Application → Local Storage → set  token = anything  → refresh.
-  // PUBLIC routes (never guarded): /login, /register, /track, /tracking/:orderId
+  // PUBLIC routes (never guarded): /login, /register, /track, /tracking/:code
   // UPDATED 2026-09-28: guests look up a delivery by trackingCode, NOT by order
   // number. The backend made GET /api/tracking/:trackingCode public while
   // GET /api/orders/:orderNumber/tracking now requires a JWT + ownership, so
@@ -69,7 +68,11 @@ export default function App() {
               </RequireAuth>
             }
           />
-          <Route path="/tracking/:orderId" element={<Tracking />} />
+          {/* Canonical tracking link: /tracking/<trackingCode>, public, rendered
+              by GuestTrack (it also accepts /track?code=<code>).
+              pages/Tracking.jsx is the old placeholder — superseded, kept only
+              for its implementation notes. */}
+          <Route path="/tracking/:code" element={<GuestTrack />} />
           {/* Landing page is auth-aware (WeDelivery/FedEx model): guests land on the
               public tracking lookup, logged-in users land on their dashboard. */}
           <Route
