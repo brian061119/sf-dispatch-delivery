@@ -68,10 +68,10 @@ export default function App() {
               </RequireAuth>
             }
           />
-          {/* Canonical tracking link: /tracking/<trackingCode>, public, rendered
-              by GuestTrack (it also accepts /track?code=<code>).
-              pages/Tracking.jsx is the old placeholder — superseded, kept only
-              for its implementation notes. */}
+          {/* Canonical tracking link: /track?code=<trackingCode>, public.
+              /tracking/:code is a legacy link — GuestTrack redirects it to the
+              query form. pages/Tracking.jsx is the old placeholder, superseded,
+              kept only for its implementation notes. */}
           <Route path="/tracking/:code" element={<GuestTrack />} />
           {/* Landing page is auth-aware (WeDelivery/FedEx model): guests land on the
               public tracking lookup, logged-in users land on their dashboard. */}

@@ -18,9 +18,9 @@ import { VehicleIcon } from '../components/VehicleIcon';
 // we tell them to log in instead of failing silently.
 //
 // URLs (both public, both render this page):
-//   /tracking/<code>   canonical, shareable result link
 //   /track             search box, guests land here by default
-//   /track?code=<code> legacy deep link, still accepted and auto-upgraded
+//   /track?code=<code> canonical, shareable result link
+//   /tracking/<code>   legacy deep link, redirects to the query form above
 
 const POLL_MS = 5000;
 // Once the delivery reaches one of these the backend stops moving it, so
@@ -48,20 +48,20 @@ export default function GuestTrack() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const urlCode = searchParams.get('code') ?? '';
-    // A code can arrive either as a path segment (/tracking/<code>) or as a
-    // query string (/track?code=<code>) from links shared before the change.
-    const urlLookupCode = normalizeCode(pathCode ?? urlCode);
+    // Canonical deep link is the query form; a path segment (/tracking/<code>)
+    // is a legacy link and gets redirected below.
+    const urlLookupCode = normalizeCode(urlCode);
 
-    const [code, setCode] = useState(pathCode ?? urlCode);
+    const [code, setCode] = useState(urlCode);
     const [tracking, setTracking] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     // Guards against a slow response overwriting a newer lookup, and keeps the
     // polling callback reading the current code without re-creating itself.
     const activeCodeRef = useRef(null);
-    // Remembers which code the URL already asked for, so moving the code into
-    // the path does not trigger a second lookup (each call advances the
-    // backend simulation, so duplicate requests are not harmless).
+    // Remembers which code the URL already asked for, so writing the code into
+    // the query string does not trigger a second lookup (each call advances
+    // the backend simulation, so duplicate requests are not harmless).
     const lastLookupRef = useRef(null);
 
     const lookup = useCallback(async (raw, { silent = false } = {}) => {
@@ -83,11 +83,11 @@ export default function GuestTrack() {
             const data = await getTrackingByCode(normalized);
             if (activeCodeRef.current !== normalized) return; // stale response
             setTracking(data);
-            // Move the code into the path so the URL can be copied and sent to
-            // the recipient as-is. replace=true keeps Back leaving the page
-            // normally instead of walking back through every lookup.
-            if (normalizeCode(pathCode ?? urlCode) !== normalized) {
-                navigate(`/tracking/${normalized}`, { replace: true });
+            // Put the code into the query string so the URL can be copied and
+            // sent to the recipient as-is. replace=true keeps Back leaving the
+            // page normally instead of walking back through every lookup.
+            if (urlLookupCode !== normalized) {
+                navigate(`/track?code=${encodeURIComponent(normalized)}`, { replace: true });
             }
         } catch (err) {
             if (activeCodeRef.current !== normalized) return;
@@ -98,7 +98,16 @@ export default function GuestTrack() {
         } finally {
             if (!silent) setLoading(false);
         }
-    }, [navigate, pathCode, urlCode]);
+    }, [navigate, urlLookupCode]);
+
+    // Legacy path link /tracking/<code> → canonical /track?code=<code>.
+    // The query-string deep-link effect below then runs the lookup, so old
+    // shared links keep working and cost exactly one request.
+    useEffect(() => {
+        if (pathCode) {
+            navigate(`/track?code=${encodeURIComponent(normalizeCode(pathCode))}`, { replace: true });
+        }
+    }, [pathCode, navigate]);
 
     // Poll only while the delivery can still move. Note that a tracking
     // request is not a pure read: the backend advances its simulation on every
@@ -109,9 +118,9 @@ export default function GuestTrack() {
         return () => clearInterval(timer);
     }, [tracking, lookup]);
 
-    // Deep link: /tracking/<code> (or the legacy /track?code=<code>) runs the
-    // lookup on load. The ref guard stops the URL rewrite below from firing a
-    // second request for the same code.
+    // Deep link: /track?code=<code> runs the lookup on load. The ref guard
+    // stops the URL rewrite above from firing a second request for the same
+    // code.
     useEffect(() => {
         if (!urlLookupCode || lastLookupRef.current === urlLookupCode) return;
         setCode(urlLookupCode);
