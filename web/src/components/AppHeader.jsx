@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { BRAND_NAME } from "../lib/brand";
 import { useAuth } from "../store/auth";
 // Top bar. TWO variants driven by the auth token:
-//   guest  — public pages (/track, /tracking/:id): brand + auth entry button
+//   guest  — public pages (/track incl. ?code=): brand + auth entry button
 //   authed — brand + Dashboard + Orders + [+ Create a new delivery] + user + Log out
 // Rendered on every route (App.jsx). On the auth pages themselves the button
 // cross-links (GitHub style): /login shows "Sign up", /register shows "Log in",

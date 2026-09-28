@@ -17,7 +17,10 @@ export function OrderCard({ order, mini }) {
           <span>${Number(order.estimatedCost).toFixed(2)}</span>
           {order.createdAt && <span>{new Date(order.createdAt).toLocaleString()}</span>}
         </Space>
-        <Link to={`/tracking/${order.orderId}`}>
+        {/* Public tracking lives at /track?code=<trackingCode> (the code is the
+            shareable credential, NOT the orderId). Older orders without a
+            trackingCode fall back to the logged-in order detail page. */}
+        <Link to={order.trackingCode ? `/track?code=${encodeURIComponent(order.trackingCode)}` : `/order/${order.orderId}`}>
           <Button type="primary" size="small" block={mini}>
             Track
           </Button>

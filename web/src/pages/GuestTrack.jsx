@@ -1,7 +1,7 @@
 import { Alert, Card, Descriptions, Empty, Input, Progress, Space, Timeline, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { getTrackingByCode } from '../api/tracking';
 import { MapView } from '../components/MapView';
 import { StatusBadge } from '../components/StatusBadge';
@@ -20,7 +20,6 @@ import { VehicleIcon } from '../components/VehicleIcon';
 // URLs (both public, both render this page):
 //   /track             search box, guests land here by default
 //   /track?code=<code> canonical, shareable result link
-//   /tracking/<code>   legacy deep link, redirects to the query form above
 
 const POLL_MS = 5000;
 // Once the delivery reaches one of these the backend stops moving it, so
@@ -44,12 +43,9 @@ function deliveryProgress(progressPercent) {
 }
 
 export default function GuestTrack() {
-    const { code: pathCode } = useParams();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const urlCode = searchParams.get('code') ?? '';
-    // Canonical deep link is the query form; a path segment (/tracking/<code>)
-    // is a legacy link and gets redirected below.
     const urlLookupCode = normalizeCode(urlCode);
 
     const [code, setCode] = useState(urlCode);
@@ -99,15 +95,6 @@ export default function GuestTrack() {
             if (!silent) setLoading(false);
         }
     }, [navigate, urlLookupCode]);
-
-    // Legacy path link /tracking/<code> → canonical /track?code=<code>.
-    // The query-string deep-link effect below then runs the lookup, so old
-    // shared links keep working and cost exactly one request.
-    useEffect(() => {
-        if (pathCode) {
-            navigate(`/track?code=${encodeURIComponent(normalizeCode(pathCode))}`, { replace: true });
-        }
-    }, [pathCode, navigate]);
 
     // Poll only while the delivery can still move. Note that a tracking
     // request is not a pure read: the backend advances its simulation on every

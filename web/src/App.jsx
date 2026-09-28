@@ -14,7 +14,7 @@ function RequireAuth({ children }) {
   // the backend is the one that validates it on real API calls. During the demo
   // phase (Login/Register still stubs) you can "log in" manually: DevTools →
   // Application → Local Storage → set  token = anything  → refresh.
-  // PUBLIC routes (never guarded): /login, /register, /track, /tracking/:code
+  // PUBLIC routes (never guarded): /login, /register, /track (incl. ?code=)
   // UPDATED 2026-09-28: guests look up a delivery by trackingCode, NOT by order
   // number. The backend made GET /api/tracking/:trackingCode public while
   // GET /api/orders/:orderNumber/tracking now requires a JWT + ownership, so
@@ -68,11 +68,9 @@ export default function App() {
               </RequireAuth>
             }
           />
-          {/* Canonical tracking link: /track?code=<trackingCode>, public.
-              /tracking/:code is a legacy link — GuestTrack redirects it to the
-              query form. pages/Tracking.jsx is the old placeholder, superseded,
-              kept only for its implementation notes. */}
-          <Route path="/tracking/:code" element={<GuestTrack />} />
+          {/* Canonical and ONLY tracking link: /track?code=<trackingCode>
+              (search box at /track), public, rendered by GuestTrack.
+              pages/Tracking.jsx (old placeholder) was deleted 2026-09-29. */}
           {/* Landing page is auth-aware (WeDelivery/FedEx model): guests land on the
               public tracking lookup, logged-in users land on their dashboard. */}
           <Route
