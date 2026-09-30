@@ -1,16 +1,16 @@
 import { useEffect, useState } from "react";
-import { Alert, Button, Card, Checkbox, Col, Descriptions, Form, Input, InputNumber, Radio, Row, Space, Spin, Steps, Tag, Typography } from "antd";
+import { Alert, Button, Card, Checkbox, Col, Descriptions, Empty, Form, Input, InputNumber, Radio, Row, Select, Space, Spin, Steps, Tag, Typography } from "antd";
 import { EnvironmentOutlined, RobotOutlined, RocketOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { createOrder } from "../api/order";
 import { getRecommendations } from "../api/recommendation";
 import { getStations } from "../api/station";
 import { MapView } from "../components/MapView";
+import { ADDRESS_OPTIONS, findAddress } from "../lib/addresses";
 import { useWizard } from "../store/wizard";
 
 const { Title, Text } = Typography;
 const steps = ["Addresses", "Package", "Delivery option", "Review & Pay"].map((title) => ({ title }));
-const sf = { city: "San Francisco", zip: "94103", lat: 37.7749, lng: -122.4194, addressId: null };
 const cardStyle = { borderRadius: 12, minHeight: 480 };
 
 export default function OrderWizard() {
@@ -46,7 +46,7 @@ export default function OrderWizard() {
   return <div style={{ padding: "24px 0 40px" }}>
     <Steps current={step} items={steps} style={{ maxWidth: 780, margin: "0 auto 34px" }} />
     {error && <Alert type="error" showIcon message={error} style={{ marginBottom: 20 }} />}
-    {step === 0 && <AddressStep stations={stations} onNext={(v) => { wizard.setAddress({ ...sf, line1: v.pickup }, { ...sf, line1: v.dropoff, lat: 37.788, lng: -122.398 }); setStep(1); }} />}
+    {step === 0 && <AddressStep stations={stations} onNext={(v) => { wizard.setAddress(findAddress(v.pickup), findAddress(v.dropoff)); setStep(1); }} />}
     {step === 1 && <PackageStep busy={busy} onBack={() => setStep(0)} onNext={(v) => { const pkg = { description: v.description, weightKg: v.weightKg, lengthCm: v.lengthCm ?? null, widthCm: v.widthCm ?? null, heightCm: v.heightCm ?? null, fragile: !!v.fragile }; wizard.setPackage(pkg, v.priority); recommendations(pkg, v.priority); }} />}
     {step === 2 && <OptionStep options={wizard.candidates} selected={wizard.selected} onSelect={wizard.select} onBack={() => setStep(1)} onNext={() => setStep(3)} busy={busy} />}
     {step === 3 && <PayStep wizard={wizard} busy={busy} onBack={() => setStep(2)} onPay={pay} />}
@@ -56,10 +56,13 @@ export default function OrderWizard() {
 function AddressStep({ stations, onNext }) {
   const [form] = Form.useForm();
   const [points, setPoints] = useState({});
-  const setMap = (_, values) => setPoints({ pickup: values.pickup ? { ...sf, line1: values.pickup } : undefined, dropoff: values.dropoff ? { ...sf, line1: values.dropoff, lat: 37.788, lng: -122.398 } : undefined });
+  const setMap = (_, values) => setPoints({ pickup: findAddress(values.pickup), dropoff: findAddress(values.dropoff) });
+  // No geocoding yet: addresses come from a fixed list with real coordinates
+  // (lib/addresses.js) so quotes, prices and the map reflect the actual route.
+  const addressSelect = (placeholder) => <Select showSearch allowClear options={ADDRESS_OPTIONS} optionFilterProp="label" placeholder={placeholder} suffixIcon={<EnvironmentOutlined />} />;
   return <Row gutter={[28, 28]}><Col xs={24} lg={10}><Card style={cardStyle}><Title level={3}>Step 1 of 4: Addresses</Title><Form form={form} layout="vertical" onFinish={onNext} onValuesChange={setMap} requiredMark={false}>
-    <Form.Item name="pickup" label="Pickup address" rules={[{ required: true, message: "Enter a pickup address" }]}><Input prefix={<EnvironmentOutlined />} placeholder="e.g. 123 Market St, San Francisco, CA" /></Form.Item>
-    <Form.Item name="dropoff" label="Destination address" rules={[{ required: true, message: "Enter a destination address" }]}><Input prefix={<EnvironmentOutlined />} placeholder="e.g. 456 Mission St, San Francisco, CA" /></Form.Item>
+    <Form.Item name="pickup" label="Pickup address" rules={[{ required: true, message: "Choose a pickup address" }]}>{addressSelect("Search pickup, e.g. Ferry Building")}</Form.Item>
+    <Form.Item name="dropoff" label="Destination address" rules={[{ required: true, message: "Choose a destination address" }, ({ getFieldValue }) => ({ validator: (_, value) => value && value === getFieldValue("pickup") ? Promise.reject(new Error("Destination must differ from pickup")) : Promise.resolve() })]}>{addressSelect("Search destination, e.g. Dolores Park")}</Form.Item>
     <Form.Item name="phone" label="Contact phone (optional)"><Input placeholder="+1 …" /></Form.Item>
     <Button htmlType="submit" type="primary" block size="large" style={{ marginTop: 120 }}>Continue →</Button>
   </Form></Card></Col><Col xs={24} lg={14}><Card style={cardStyle} title="Route preview"><MapView pickup={points.pickup} destination={points.dropoff} route={points.pickup && points.dropoff ? [points.pickup, points.dropoff] : undefined} height={480} />{stations[0] && <Text type="secondary">Delivery options use current station availability.</Text>}</Card></Col></Row>;
@@ -78,7 +81,7 @@ function PackageStep({ onBack, onNext, busy }) {
 
 function OptionStep({ options, selected, onSelect, onBack, onNext, busy }) {
   if (busy) return <div style={{ minHeight: 300, display: "grid", placeItems: "center" }}><Spin size="large" /></div>;
-  return <div style={{ maxWidth: 1140, margin: "auto" }}><Space direction="vertical" size={16} style={{ width: "100%" }}><Title level={3}>Recommended delivery options</Title>{options.map((option) => <Card key={option.candidateId} style={{ border: selected?.candidateId === option.candidateId ? "2px solid #1677ff" : undefined, borderRadius: 12 }}>
+  return <div style={{ maxWidth: 1140, margin: "auto" }}><Space direction="vertical" size={16} style={{ width: "100%" }}><Title level={3}>Recommended delivery options</Title>{!options.length && <Card><Empty description="No vehicles can take this delivery right now. Try a different pickup address or a lighter package." /></Card>}{options.map((option) => <Card key={option.candidateId} style={{ border: selected?.candidateId === option.candidateId ? "2px solid #1677ff" : undefined, borderRadius: 12 }}>
     <Row align="middle" gutter={16}><Col flex="auto"><Space direction="vertical" size={6}><Title level={4} style={{ margin: 0 }}>{option.vehicleType === "DRONE" ? <RocketOutlined /> : <RobotOutlined />} {option.vehicleType === "DRONE" ? "Drone" : "Robot"} {option.isFastest && <Tag color="blue">Fastest</Tag>} {option.isCheapest && <Tag color="green">Best value</Tag>}</Title><Text>${Number(option.estimatedCost).toFixed(2)} · {option.estimatedTimeMinutes} min · {option.stationName}</Text><Text type={option.availableUnits ? "success" : "secondary"}>{option.availableUnits ? `${option.availableUnits} vehicles available` : "Currently unavailable"}</Text></Space></Col><Col><Button type={selected?.candidateId === option.candidateId ? "primary" : "default"} disabled={!option.availableUnits} onClick={() => onSelect(option)}>Select</Button></Col></Row>
   </Card>)}<Space style={{ display: "flex", justifyContent: "space-between", marginTop: 22 }}><Button onClick={onBack}>← Back</Button><Button type="primary" disabled={!selected} onClick={onNext}>Continue →</Button></Space></Space></div>;
 }
