@@ -64,6 +64,7 @@ Every response shape below was checked against the running backend, not just the
 
 ### 4.3 Recommendations (login required → 401 without)
 - `POST /api/recommendations` `{pickup, dropoff, package, priority}` → `{candidates: [...]}` with `candidateId` (e.g. `CAND-FASTEST`, `CAND-BEST_VALUE`, `CAND-OFF_PEAK`), `estimatedCost`, `estimatedTimeMinutes`, `stationId`, `vehicleType`, `availableUnits`, `isFastest`, `isCheapest`. VIP prices already include the discount.
+- **Only the station nearest the pickup is quoted** (`RecommendationService.selectBestStation`). If that station has no free vehicle that fits, `candidates` is **empty**, even when other stations have free vehicles (see B6). Show an empty state, and for the demo use pickups near a station with free vehicles.
 
 ### 4.4 Create order
 `POST /api/orders` (login required). Request:
@@ -155,6 +156,7 @@ JSON errors look like `{timestamp, status, error, message}`, plus `code` for pay
 | B3 | Tracking `status` → 4-state + `detailStatus` (same as the order list) | `normalizeStatus()` becomes a no-op; keep it as a safety net |
 | B4 | Contract response for order detail (`orderId`, 4-state `status` + `detailStatus`, prices, addresses, times) | Replace the defensive rendering; **breaking change**, announce before merging |
 | B5 | Decide logout (client-only is fine) and update `api-contract.md` | Remove the `/auth/logout` call |
+| B6 | Recommendations: if the nearest station has no free vehicle that fits, try the next-nearest stations (by distance) instead of returning nothing. Found 2026-09-30: all 4 Station 3 vehicles were `IN_DELIVERY`, so every Mission pickup (e.g. Dolores Park) got `candidates: []` while Stations 1 and 2 had free drones and robots | Fewer empty results; `stationId` / `stationName` can differ from the nearest station, which the UI already shows per option. No contract change |
 
 ---
 
