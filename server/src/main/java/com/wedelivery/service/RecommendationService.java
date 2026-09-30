@@ -341,6 +341,13 @@ public class RecommendationService {
         return "CAND-" + plan.getPlanType().name();
     }
 
+    public static boolean isWithinSanFrancisco(BigDecimal lat, BigDecimal lng) {
+        if (lat == null || lng == null) return false;
+        double dLat = lat.doubleValue();
+        double dLng = lng.doubleValue();
+        return dLat >= 37.708 && dLat <= 37.84 && dLng >= -122.53 && dLng <= -122.35;
+    }
+
     /** 从契约 payload (pickup / dropoff / package) 构造推荐请求 */
     private QuoteRequest buildContractQuoteRequest(java.util.Map<String, Object> body) {
         // 从契约 payload 提取
@@ -348,10 +355,21 @@ public class RecommendationService {
         java.util.Map<String, Object> dropoff = (java.util.Map<String, Object>) body.getOrDefault("dropoff", java.util.Collections.emptyMap());
         java.util.Map<String, Object> pkg = (java.util.Map<String, Object>) body.getOrDefault("package", java.util.Collections.emptyMap());
 
-        BigDecimal pLat = pickup.get("lat") != null ? new BigDecimal(pickup.get("lat").toString()) : new BigDecimal("37.7858");
-        BigDecimal pLng = pickup.get("lng") != null ? new BigDecimal(pickup.get("lng").toString()) : new BigDecimal("-122.4065");
-        BigDecimal dLat = dropoff.get("lat") != null ? new BigDecimal(dropoff.get("lat").toString()) : new BigDecimal("37.7596");
-        BigDecimal dLng = dropoff.get("lng") != null ? new BigDecimal(dropoff.get("lng").toString()) : new BigDecimal("-122.4269");
+        if (pickup.get("lat") == null || pickup.get("lng") == null) {
+            throw new IllegalArgumentException("Pickup coordinates (lat, lng) are required.");
+        }
+        if (dropoff.get("lat") == null || dropoff.get("lng") == null) {
+            throw new IllegalArgumentException("Dropoff coordinates (lat, lng) are required.");
+        }
+
+        BigDecimal pLat = new BigDecimal(pickup.get("lat").toString());
+        BigDecimal pLng = new BigDecimal(pickup.get("lng").toString());
+        BigDecimal dLat = new BigDecimal(dropoff.get("lat").toString());
+        BigDecimal dLng = new BigDecimal(dropoff.get("lng").toString());
+
+        if (!isWithinSanFrancisco(pLat, pLng) || !isWithinSanFrancisco(dLat, dLng)) {
+            throw new IllegalArgumentException("Pickup or destination address is outside the San Francisco service area.");
+        }
 
         BigDecimal weight = pkg.get("weightKg") != null ? new BigDecimal(pkg.get("weightKg").toString()) : new BigDecimal("1.5");
         BigDecimal vol = new BigDecimal("0.02");

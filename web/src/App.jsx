@@ -1,7 +1,9 @@
 import { Layout } from "antd";
 import { Navigate, Route, Routes } from "react-router-dom";
+import { AiAssistant } from "./components/AiAssistant";
 import { AppHeader } from "./components/AppHeader";
-import { isAuthed } from "./lib/auth";
+import { getRole, isAuthed } from "./lib/auth";
+import AdminDashboard from "./pages/AdminDashboard";
 import Dashboard from "./pages/Dashboard";
 import GuestTrack from "./pages/GuestTrack";
 import Login from "./pages/Login";
@@ -11,23 +13,23 @@ import OrderWizard from "./pages/OrderWizard";
 import Register from "./pages/Register";
 function RequireAuth({ children }) {
   // social-ai style: the frontend trusts token PRESENCE (any string counts) —
-  // the backend is the one that validates it on real API calls. During the demo
-  // phase (Login/Register still stubs) you can "log in" manually: DevTools →
-  // Application → Local Storage → set  token = anything  → refresh.
+  // the backend is the one that validates it on real API calls.
   // PUBLIC routes (never guarded): /login, /register, /track (incl. ?code=)
-  // UPDATED 2026-09-28: guests look up a delivery by trackingCode, NOT by order
-  // number. The backend made GET /api/tracking/:trackingCode public while
-  // GET /api/orders/:orderNumber/tracking now requires a JWT + ownership, so
-  // "the order number is the credential" is no longer true.
   if (!isAuthed()) {
     return <Navigate to="/login" replace />;
   }
-
-  return isAuthed() ? <>{children}</> : <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+function RequireAdmin({ children }) {
+  // Frontend gate is a hint only — the backend re-checks the role on
+  // GET /api/admin/dashboard and returns 403 for non-admins.
+  if (!isAuthed()) return <Navigate to="/login" replace />;
+  if (getRole() !== "ADMIN") return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
 }
 export default function App() {
   return (
-    <Layout style={{ minHeight: "100vh" }}>
+    <Layout style={{ minHeight: "100vh", background: "#eef2f6" }}>
       <AppHeader />
       <Layout.Content
         style={{ padding: 24, maxWidth: 1100, margin: "0 auto", width: "100%" }}
@@ -68,9 +70,16 @@ export default function App() {
               </RequireAuth>
             }
           />
+          <Route
+            path="/admin"
+            element={
+              <RequireAdmin>
+                <AdminDashboard />
+              </RequireAdmin>
+            }
+          />
           {/* Canonical and ONLY tracking link: /track?code=<trackingCode>
-              (search box at /track), public, rendered by GuestTrack.
-              pages/Tracking.jsx (old placeholder) was deleted 2026-09-29. */}
+              (search box at /track), public, rendered by GuestTrack. */}
           {/* Landing page is auth-aware (WeDelivery/FedEx model): guests land on the
               public tracking lookup, logged-in users land on their dashboard. */}
           <Route
@@ -81,6 +90,7 @@ export default function App() {
           />
         </Routes>
       </Layout.Content>
+      <AiAssistant />
     </Layout>
   );
 }

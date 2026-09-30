@@ -7,6 +7,7 @@ import { MapView } from '../components/MapView';
 import { StatusBadge } from '../components/StatusBadge';
 import { StatusTimeline } from '../components/StatusTimeline';
 import { VehicleIcon } from '../components/VehicleIcon';
+import { isAuthed } from '../lib/auth';
 // Owner: Yuning Zhang (tracking). Wireframe: wireframes/11_GuestTrack.svg
 // PUBLIC page (no login). This is also the landing page for guests — App.jsx
 // sends every unauthenticated visit to /track.
@@ -118,12 +119,26 @@ export default function GuestTrack() {
     const events = tracking?.events ?? [];
     const hasPosition = Number.isFinite(Number(tracking?.currentLat)) && Number.isFinite(Number(tracking?.currentLng));
     const progress = deliveryProgress(tracking?.progressPercent);
+    const authed = isAuthed();
+
+    // Hero banner (WeDelivery-style landing): brand gradient + subtle dot
+    // pattern so the public page reads as a designed surface, not a bare form.
+    const heroStyle = {
+        margin: '-24px -24px 24px',
+        padding: '44px 24px 36px',
+        borderRadius: '0 0 18px 18px',
+        background: 'linear-gradient(135deg, #1677ff 0%, #722ed1 100%)',
+        backgroundImage: 'radial-gradient(rgba(255,255,255,.18) 1.5px, transparent 1.5px), linear-gradient(135deg, #1677ff 0%, #722ed1 100%)',
+        backgroundSize: '22px 22px, 100% 100%',
+        color: '#fff',
+        textAlign: 'center',
+    };
 
     return (
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
-            <div>
-                <Typography.Title level={3} style={{ marginBottom: 4 }}>Track your delivery</Typography.Title>
-                <Typography.Text type="secondary">
+            <div style={heroStyle}>
+                <Typography.Title level={2} style={{ color: '#fff', marginBottom: 8 }}>Track your delivery</Typography.Title>
+                <Typography.Text style={{ color: 'rgba(255,255,255,.88)' }}>
                     Enter the tracking code from your order confirmation — no account needed.
                 </Typography.Text>
             </div>
@@ -143,13 +158,14 @@ export default function GuestTrack() {
             {error && <Alert type="error" showIcon message={error} />}
 
             {!tracking && !error && !loading && (
-                <Card>
+                <Card style={{ borderRadius: 12, boxShadow: '0 2px 12px rgba(15,40,80,.06)' }}>
                     <Empty description="Enter a tracking code to see where your delivery is." />
                 </Card>
             )}
 
             {tracking && (
                 <Card
+                    style={{ borderRadius: 12, boxShadow: '0 2px 12px rgba(15,40,80,.06)' }}
                     title={<Space><span>Order {tracking.orderId}</span><StatusBadge status={tracking.status} /></Space>}
                     extra={tracking.vehicleType ? (<Space size={6}><VehicleIcon vehicle={tracking.vehicleType} />{tracking.vehicleType}</Space>) : null}
                 >
@@ -197,9 +213,13 @@ export default function GuestTrack() {
                                 : [{ children: tracking.currentStageDescription ?? 'Waiting for the first update.' }]}
                         />
 
-                        <Typography.Text type="secondary">
-                            Have an account? <Link to="/login">Log in</Link> to see all your orders and manage this delivery.
-                        </Typography.Text>
+                        {/* Guests get the login nudge; logged-in users already have
+                            the header nav, so we do NOT show a Log in link to them. */}
+                        {!authed && (
+                            <Typography.Text type="secondary">
+                                Have an account? <Link to="/login">Log in</Link> to see all your orders and manage this delivery.
+                            </Typography.Text>
+                        )}
                     </Space>
                 </Card>
             )}
