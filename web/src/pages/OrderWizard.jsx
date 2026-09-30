@@ -287,6 +287,11 @@ function PackageStep({ onBack, onNext, busy, initial }) {
 /* Step 3 — delivery option (a selection is required to continue)      */
 /* ------------------------------------------------------------------ */
 
+/** Off-peak plans are identified by candidateId (CAND-OFF_PEAK); the contract DTO carries no planType field. */
+function isOffPeak(option) {
+  return (option?.candidateId ?? "").toUpperCase().includes("OFF_PEAK");
+}
+
 function OptionStep({ options, selected, onSelect, onBack, onNext, busy }) {
   if (busy) return <div style={{ minHeight: 300, display: "grid", placeItems: "center" }}><Spin size="large" /></div>;
   const isVip = getRole() === "VIP";
@@ -301,8 +306,9 @@ function OptionStep({ options, selected, onSelect, onBack, onNext, busy }) {
               <Col flex="auto">
                 <Space direction="vertical" size={6}>
                   <Title level={4} style={{ margin: 0 }}>
-                    {option.vehicleType === "DRONE" ? <RocketOutlined /> : <RobotOutlined />} {option.vehicleType === "DRONE" ? "Drone" : "Robot"} {option.isFastest && <Tag color="blue">Fastest</Tag>} {option.isCheapest && <Tag color="green">Best value</Tag>}
+                    {option.vehicleType === "DRONE" ? <RocketOutlined /> : <RobotOutlined />} {isOffPeak(option) ? "Off-peak" : (option.vehicleType === "DRONE" ? "Drone" : "Robot")} {isOffPeak(option) && <Tag color="cyan">−15% · starts 1h later</Tag>} {option.isFastest && <Tag color="blue">Fastest</Tag>} {option.isCheapest && <Tag color="green">Best value</Tag>}
                   </Title>
+                  {isOffPeak(option) && <Text type="secondary">Eco-friendly off-peak plan: the {option.vehicleType === "DRONE" ? "drone" : "robot"} departs 1 hour later, and you save 15% on shipping.</Text>}
                   <Text>${Number(option.estimatedCost).toFixed(2)} · {option.estimatedTimeMinutes} min · {option.stationName}</Text>
                   <Text type={option.availableUnits ? "success" : "secondary"}>{option.availableUnits ? `${option.availableUnits} vehicles available` : "Currently unavailable"}</Text>
                 </Space>
@@ -350,7 +356,7 @@ function PayStep({ wizard, onBack, onPay, busy }) {
             <Descriptions.Item label="Pickup">{wizard.pickup?.line1}</Descriptions.Item>
             <Descriptions.Item label="Destination">{wizard.dropoff?.line1}</Descriptions.Item>
             <Descriptions.Item label="Package">{wizard.pkg?.description} · {wizard.pkg?.weightKg} kg{wizard.pkg?.fragile ? " · fragile" : ""}</Descriptions.Item>
-            <Descriptions.Item label="Option">{option?.vehicleType} · {option?.estimatedTimeMinutes} min · {option?.stationName}</Descriptions.Item>
+            <Descriptions.Item label="Option">{option?.vehicleType}{isOffPeak(option) ? " (Off-peak −15%, departs 1h later)" : ""} · {option?.estimatedTimeMinutes} min · {option?.stationName}</Descriptions.Item>
           </Descriptions>
           <Title level={4} style={{ marginTop: 42 }}>Total ${total.toFixed(2)}</Title>
           <Text type="secondary">Same price as the option you selected — the backend re-computes it from your exact route and package at checkout.</Text>
