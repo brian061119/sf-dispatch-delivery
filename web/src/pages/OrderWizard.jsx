@@ -22,10 +22,12 @@ export default function OrderWizard() {
   const [error, setError] = useState("");
   useEffect(() => { getStations().then((items) => setStations(items.map((s) => ({ ...s, lat: s.lat ?? s.latitude, lng: s.lng ?? s.longitude })))).catch(() => {}); }, []);
 
-  async function recommendations() {
+  // pkg/priority come in as arguments: `wizard` is this render's snapshot, so
+  // reading wizard.pkg right after setPackage() would still see the old value.
+  async function recommendations(pkg, priority) {
     setBusy(true); setError("");
     try {
-      const result = await getRecommendations({ pickup: wizard.pickup, dropoff: wizard.dropoff, package: wizard.pkg, priority: wizard.priority });
+      const result = await getRecommendations({ pickup: wizard.pickup, dropoff: wizard.dropoff, package: pkg, priority });
       wizard.setCandidates(result.candidates); setStep(2);
     } catch (err) { setError(err?.response?.data?.message || "Could not load delivery options."); }
     finally { setBusy(false); }
@@ -33,7 +35,7 @@ export default function OrderWizard() {
   async function pay({ cardNumber }) {
     setBusy(true); setError("");
     try {
-      const order = await createOrder({ candidateId: wizard.selected.candidateId, pickup: wizard.pickup, dropoff: wizard.dropoff, package: wizard.pkg, priority: wizard.priority, paymentMethodId: "card", cardNumber: cardNumber.replace(/\s/g, "") });
+      const order = await createOrder({ candidateId: wizard.selected.candidateId, pickup: wizard.pickup, dropoff: wizard.dropoff, package: wizard.pkg, priority: wizard.priority, cardNumber: cardNumber.replace(/\s/g, "") }); // no paymentMethodId: the backend prefers it over cardNumber, which would skip the 0000 decline check
       if (!order.trackingCode) {
         throw new Error("Order was created, but no public tracking code was returned.");
       }
@@ -45,7 +47,7 @@ export default function OrderWizard() {
     <Steps current={step} items={steps} style={{ maxWidth: 780, margin: "0 auto 34px" }} />
     {error && <Alert type="error" showIcon message={error} style={{ marginBottom: 20 }} />}
     {step === 0 && <AddressStep stations={stations} onNext={(v) => { wizard.setAddress({ ...sf, line1: v.pickup }, { ...sf, line1: v.dropoff, lat: 37.788, lng: -122.398 }); setStep(1); }} />}
-    {step === 1 && <PackageStep busy={busy} onBack={() => setStep(0)} onNext={(v) => { wizard.setPackage({ description: v.description, weightKg: v.weightKg, lengthCm: v.lengthCm ?? null, widthCm: v.widthCm ?? null, heightCm: v.heightCm ?? null, fragile: !!v.fragile }, v.priority); recommendations(); }} />}
+    {step === 1 && <PackageStep busy={busy} onBack={() => setStep(0)} onNext={(v) => { const pkg = { description: v.description, weightKg: v.weightKg, lengthCm: v.lengthCm ?? null, widthCm: v.widthCm ?? null, heightCm: v.heightCm ?? null, fragile: !!v.fragile }; wizard.setPackage(pkg, v.priority); recommendations(pkg, v.priority); }} />}
     {step === 2 && <OptionStep options={wizard.candidates} selected={wizard.selected} onSelect={wizard.select} onBack={() => setStep(1)} onNext={() => setStep(3)} busy={busy} />}
     {step === 3 && <PayStep wizard={wizard} busy={busy} onBack={() => setStep(2)} onPay={pay} />}
   </div>;
