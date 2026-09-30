@@ -38,5 +38,12 @@ export async function submitReview(orderId, body) {
     const { data } = await http.post(`/orders/${orderId}/review`, body);
     return data;
 }
-// NOTE: the contract has NO cancel endpoint. The Tracking page's cancel button is
-// commented out with a TODO until the backend adds one (tracked in HANDOFF.md).
+// Cancel is CONTRACT-EXTERNAL: the backend has no cancel endpoint yet
+// (requested from the backend team 2026-09-30). Until PATCH /orders/:id/cancel
+// ships, a real call returns 404 and the UI shows "not supported yet" instead
+// of breaking. Works today under VITE_MOCK=1.
+export async function cancelOrder(orderId) {
+    if (import.meta.env.VITE_MOCK === '1') return mock.cancelOrder(orderId);
+    const { data } = await http.patch(`/orders/${orderId}/cancel`);
+    return data;
+}

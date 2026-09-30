@@ -8,3 +8,14 @@ export async function parseOrderText(text) {
     const { data } = await http.post('/ai/parse', { text });
     return data;
 }
+// AI assistant (contract-external POST /api/ai/chat — proposed 2026-09-30).
+// Read-only intents: track-by-code, price quotes, status explanations,
+// order-draft prefill. Writes are never executed by the model — the reply may
+// carry a `prefill` draft, but the user still walks the wizard and pays.
+// Request:  { message, history: [{ role: 'user'|'assistant', content }] }
+// Response: { reply, cards?: Array<{type:'order'|'quote'|'prefill', ...}>, prefill?: {...} }
+export async function sendChatMessage(body) {
+    if (import.meta.env.VITE_MOCK === '1') return mock.sendChatMessage(body);
+    const { data } = await http.post('/ai/chat', body);
+    return data;
+}

@@ -1,15 +1,15 @@
-import { Button, Layout, Space, Typography } from "antd";
+import { Button, Layout, Space, Tag, Typography } from "antd";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { BRAND_NAME } from "../lib/brand";
 import { useAuth } from "../store/auth";
 // Top bar. TWO variants driven by the auth token:
-//   guest  — public pages (/track incl. ?code=): brand + auth entry button
-//   authed — brand + Dashboard + Orders + [+ Create a new delivery] + user + Log out
-// Rendered on every route (App.jsx). On the auth pages themselves the button
-// cross-links (GitHub style): /login shows "Sign up", /register shows "Log in",
-// so the header never offers the page you are already on.
+//   guest  — public pages (/track incl. ?code=): brand + Log in button
+//   authed — brand + Dashboard + Orders + [+ Create a new delivery]
+//            (+ Admin for ADMIN role) + user (+ role badge) + Log out
+// On the auth pages themselves the button cross-links: /login shows
+// "Sign up", /register shows "Log in".
 export function AppHeader() {
-  const { token, username, logout } = useAuth();
+  const { token, username, role, logout } = useAuth();
   const nav = useNavigate();
   const { pathname } = useLocation();
   const barStyle = {
@@ -22,7 +22,6 @@ export function AppHeader() {
   };
   if (!token) {
     const onAuthPage = pathname === "/login" || pathname === "/register";
-
     return (
       <Layout.Header style={barStyle}>
         <Typography.Title level={4} style={{ margin: 0 }}>
@@ -51,6 +50,7 @@ export function AppHeader() {
       <Space size="large">
         <Link to="/dashboard">Dashboard</Link>
         <Link to="/orders">Orders</Link>
+        {role === "ADMIN" && <Link to="/admin">Admin</Link>}
       </Space>
       <div style={{ flex: 1 }} />
       <Space>
@@ -58,6 +58,8 @@ export function AppHeader() {
           + Create a new delivery
         </Button>
         <span>{username ?? "dev-user"}</span>
+        {role === "VIP" && <Tag color="gold">VIP</Tag>}
+        {role === "ADMIN" && <Tag color="geekblue">ADMIN</Tag>}
         <Button
           onClick={() => {
             logout();
