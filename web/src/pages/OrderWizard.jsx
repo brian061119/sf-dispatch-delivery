@@ -6,7 +6,7 @@ import { createOrder } from "../api/order";
 import { getRecommendations } from "../api/recommendation";
 import { getStations } from "../api/station";
 import { MapView } from "../components/MapView";
-import { autocomplete, geocode, reverseGeocode } from "../lib/geocode";
+import { autocomplete, geocode, geocodePlaceId, isWithinSanFrancisco, reverseGeocode } from "../lib/geocode";
 import { DEMO_ADDRESSES } from "../lib/addresses";
 import { getRole } from "../lib/auth";
 import { useWizard } from "../store/wizard";
@@ -94,6 +94,10 @@ function AddressStep({ stations, initial, onNext }) {
   const [busy, setBusy] = useState(false);
 
   async function handleMapClick(latlng) {
+    if (!isWithinSanFrancisco(latlng.lat, latlng.lng)) {
+      setErrors((e) => ({ ...e, [active]: "Selected location is outside our San Francisco service area. Please click within SF." }));
+      return;
+    }
     const setField = active === "pickup" ? setPickup : setDropoff;
     setField((a) => ({ ...a, status: "verifying" }));
     try {
@@ -103,25 +107,32 @@ function AddressStep({ stations, initial, onNext }) {
       setErrors((e) => ({ ...e, [active]: "" }));
     } catch {
       setField((a) => ({ ...a, lat: null, lng: null, status: "invalid" }));
-      setErrors((e) => ({ ...e, [active]: "No street address found at that spot — click on a road or building." }));
+      setErrors((e) => ({ ...e, [active]: "No street address found at that spot — click on a road or building within San Francisco." }));
     }
   }
 
   async function ensureValid(key, addr, setField) {
-    if (addr.status === "valid" && addr.lat != null) return addr;
+    if (addr.status === "valid" && addr.lat != null) {
+      if (!isWithinSanFrancisco(addr.lat, addr.lng)) {
+        setField((a) => ({ ...a, status: "invalid", lat: null, lng: null }));
+        setErrors((e) => ({ ...e, [key]: "This address is outside our San Francisco service area." }));
+        return null;
+      }
+      return addr;
+    }
     if (addr.status === "verifying") return null; // a lookup is already running
     if (!addr.street.trim()) { setErrors((e) => ({ ...e, [key]: "Enter a street address, or pick one on the map." })); return null; }
     setField((a) => ({ ...a, status: "verifying" }));
     try {
       const r = await geocode(addr);
-      if (!r) throw new Error("not found");
+      if (!r || !isWithinSanFrancisco(r.lat, r.lng)) throw new Error("not found");
       const fixed = { ...addr, lat: r.lat, lng: r.lng, status: "valid", displayName: r.displayName, zip: addr.zip || r.zip };
       setField(fixed);
       setErrors((e) => ({ ...e, [key]: "" }));
       return fixed;
     } catch {
       setField((a) => ({ ...a, lat: null, lng: null, status: "invalid" }));
-      setErrors((e) => ({ ...e, [key]: "That address could not be found. Pick a suggestion from the list or click the exact spot on the map." }));
+      setErrors((e) => ({ ...e, [key]: "Address could not be found or is outside San Francisco. Pick a suggestion from the list or click the map." }));
       return null;
     }
   }
@@ -203,10 +214,24 @@ function AddressField({ label, color, value, error, onChange, onFocus }) {
     }, 350);
   }
 
-  function handleSelect(optionValue) {
-    const r = foundRef.current.get(optionValue);
+  async function handleSelect(optionValue) {
+    let r = foundRef.current.get(optionValue);
     if (!r) return;
-    onChange({ street: r.street || r.displayName, city: r.city || "San Francisco", zip: r.zip || "", lat: r.lat, lng: r.lng, status: "valid", displayName: r.displayName });
+    if (r.placeId && (r.lat == null || r.lng == null)) {
+      onChange({ ...value, street: r.street || r.displayName, status: "verifying" });
+      const resolved = await geocodePlaceId(r.placeId);
+      if (resolved) r = resolved;
+    }
+    const isValid = r.lat != null && isWithinSanFrancisco(r.lat, r.lng);
+    onChange({
+      street: r.street || r.displayName,
+      city: r.city || "San Francisco",
+      zip: r.zip || "",
+      lat: isValid ? r.lat : null,
+      lng: isValid ? r.lng : null,
+      status: isValid ? "valid" : "invalid",
+      displayName: r.displayName || r.street,
+    });
     setOptions([]);
   }
 

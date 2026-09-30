@@ -1,77 +1,341 @@
-// Geocoding via OpenStreetMap Nominatim — free, no API key, CORS-open.
-// Used by the order wizard address step:
-//   autocomplete(query)      — input dropdown suggestions (forward geocode)
-//   geocode(address)         — validate a structured address → {lat,lng,...} or null
-//   reverseGeocode(lat, lng) — map click → nearest street address
-//
-// Policy notes: Nominatim allows ~1 req/s and asks callers to identify
-// themselves; browsers send Origin automatically. We debounce at the caller
-// and cache results in-session to stay well under the limit.
-// Demo scope: viewbox is clamped to San Francisco so suggestions stay relevant.
+// Geocoding and address validation service.
+// Supports Google Maps Platform (Places Autocomplete + Geocoding) with automatic
+// fallback to OpenStreetMap Nominatim.
+// All lookups and validations are strictly constrained to San Francisco, CA.
 
-const BASE = 'https://nominatim.openstreetmap.org';
-// SF bounding box: (left, top, right, bottom) lon/lat.
-const SF_VIEWBOX = '-122.52,37.83,-122.35,37.70';
-// Force English place names. Nominatim otherwise localizes results to the
-// browser's Accept-Language (zh-CN here → 旧金山/加利福尼亚州/美国), and the
-// browser forbids JS from overriding the Accept-Language header directly.
-const LANG = 'accept-language=en';
+export const SF_BOUNDS = {
+  south: 37.708, // The true southern boundary between SF and San Mateo County / Daly City
+  north: 37.84,
+  west: -122.53,
+  east: -122.35,
+};
 
-const cache = new Map();
+export const SF_VIEWBOX = `${SF_BOUNDS.west},${SF_BOUNDS.north},${SF_BOUNDS.east},${SF_BOUNDS.south}`;
 
-async function fetchJson(url) {
-    if (cache.has(url)) return cache.get(url);
-    const res = await fetch(url, { headers: { Accept: 'application/json' } });
-    if (!res.ok) throw new Error(`geocoding failed: ${res.status}`);
-    const json = await res.json();
-    cache.set(url, json);
-    return json;
+/** Checks if a coordinate pair falls within the San Francisco delivery zone. */
+export function isWithinSanFrancisco(lat, lng) {
+  if (lat == null || lng == null) return false;
+  const numLat = Number(lat);
+  const numLng = Number(lng);
+  return (
+    numLat >= SF_BOUNDS.south &&
+    numLat <= SF_BOUNDS.north &&
+    numLng >= SF_BOUNDS.west &&
+    numLng <= SF_BOUNDS.east
+  );
 }
 
-/** Some OSM records carry multi-language aliases joined by ';'
- * (e.g. "旧金山;舊金山;三藩市"). Keep the first, which is the localized name. */
-function primaryName(value) {
-    return String(value ?? '').split(';')[0].trim();
-}
+/* ------------------------------------------------------------------ */
+/* Google Maps SDK Loader                                             */
+/* ------------------------------------------------------------------ */
 
-function toResult(item) {
-    if (!item) return null;
-    return {
-        lat: Number(item.lat),
-        lng: Number(item.lon),
-        displayName: item.display_name,
-        // Structured parts for the form (may be missing on sparse results).
-        street: [item.address?.house_number, item.address?.road].filter(Boolean).join(' ') || item.address?.road || '',
-        city: primaryName(item.address?.city || item.address?.town || item.address?.village) || 'San Francisco',
-        zip: item.address?.postcode || '',
+let googleMapsPromise = null;
+
+export function loadGoogleMaps() {
+  if (typeof window === "undefined") {
+    return Promise.reject(new Error("Window is not available"));
+  }
+  if (window.google?.maps?.places) {
+    return Promise.resolve(window.google.maps);
+  }
+
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+  if (!apiKey || typeof apiKey !== "string" || !apiKey.trim()) {
+    return Promise.reject(new Error("VITE_GOOGLE_MAPS_API_KEY is not configured"));
+  }
+
+  if (googleMapsPromise) return googleMapsPromise;
+
+  googleMapsPromise = new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[data-gmaps-loader="true"]');
+    if (existing) {
+      existing.addEventListener("load", () => resolve(window.google.maps));
+      existing.addEventListener("error", (e) => reject(e));
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(
+      apiKey.trim()
+    )}&libraries=places&language=en&region=US`;
+    script.async = true;
+    script.defer = true;
+    script.dataset.gmapsLoader = "true";
+
+    script.onload = () => {
+      if (window.google?.maps?.places) {
+        resolve(window.google.maps);
+      } else {
+        reject(new Error("Google Maps loaded without Places library"));
+      }
     };
+    script.onerror = (err) => {
+      googleMapsPromise = null;
+      reject(new Error("Failed to load Google Maps script"));
+    };
+    document.head.appendChild(script);
+  });
+
+  return googleMapsPromise;
 }
 
-/** Forward-search suggestions for an autocomplete dropdown.
- * @param {string} query free text, e.g. "ferry build"
- * @returns {Promise<Array<{lat,lng,displayName,street,city,zip}>>} */
+function extractGoogleComponents(result) {
+  if (!result || !result.geometry?.location) return null;
+  const lat = result.geometry.location.lat();
+  const lng = result.geometry.location.lng();
+
+  // 1. Physical land boundary check
+  if (!isWithinSanFrancisco(lat, lng)) {
+    return null;
+  }
+
+  // 2. Strict administrative boundary: must explicitly belong to San Francisco locality or county
+  // This cleanly rejects neighboring cities like Daly City, South San Francisco, Oakland, etc.
+  const isSF = (result.address_components || []).some(
+    (comp) =>
+      (comp.types.includes("locality") && comp.long_name.toLowerCase() === "san francisco") ||
+      (comp.types.includes("administrative_area_level_2") && comp.long_name.toLowerCase() === "san francisco county") ||
+      (comp.types.includes("sublocality") && comp.long_name.toLowerCase() === "san francisco")
+  );
+  if (!isSF) {
+    return null;
+  }
+
+  // 3. Reject offshore / water bodies in the Pacific Ocean or San Francisco Bay
+  const types = result.types || [];
+  const isPureWater = types.some((t) => ["natural_feature", "water", "sea", "ocean", "bay"].includes(t));
+  const hasLandFeature = types.some((t) =>
+    ["street_address", "route", "premise", "subpremise", "point_of_interest", "establishment", "intersection"].includes(t)
+  );
+  if (isPureWater && !hasLandFeature) {
+    return null;
+  }
+
+  let streetNumber = "";
+  let route = "";
+  let city = "San Francisco";
+  let zip = "";
+
+  for (const comp of result.address_components || []) {
+    if (comp.types.includes("street_number")) streetNumber = comp.long_name;
+    if (comp.types.includes("route")) route = comp.short_name || comp.long_name;
+    if (comp.types.includes("locality")) city = comp.long_name;
+    if (comp.types.includes("postal_code")) zip = comp.long_name;
+  }
+
+  const street =
+    [streetNumber, route].filter(Boolean).join(" ") ||
+    result.formatted_address.split(",")[0] ||
+    "";
+
+  return {
+    lat,
+    lng,
+    displayName: result.formatted_address,
+    street,
+    city,
+    zip,
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Public API (Google Maps with OSM Fallback)                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Autocomplete address suggestions as user types.
+ * Constrained strictly to San Francisco.
+ */
 export async function autocomplete(query) {
-    const q = (query ?? '').trim();
-    if (q.length < 3) return [];
-    const url = `${BASE}/search?format=jsonv2&addressdetails=1&limit=5&countrycodes=us&viewbox=${SF_VIEWBOX}&bounded=1&${LANG}&q=${encodeURIComponent(q)}`;
-    const items = await fetchJson(url);
-    return (items ?? []).map(toResult).filter(Boolean);
+  const q = (query ?? "").trim();
+  if (q.length < 3) return [];
+
+  try {
+    const maps = await loadGoogleMaps();
+    const service = new maps.places.AutocompleteService();
+    const sfBounds = new maps.LatLngBounds(
+      new maps.LatLng(SF_BOUNDS.south, SF_BOUNDS.west),
+      new maps.LatLng(SF_BOUNDS.north, SF_BOUNDS.east)
+    );
+
+    const predictions = await new Promise((resolve) => {
+      service.getPlacePredictions(
+        {
+          input: q,
+          bounds: sfBounds,
+          strictBounds: true,
+          componentRestrictions: { country: "us" },
+        },
+        (results, status) => {
+          if (status === maps.places.PlacesServiceStatus.OK && results) {
+            resolve(results);
+          } else {
+            resolve([]);
+          }
+        }
+      );
+    });
+
+    return predictions.map((p) => ({
+      placeId: p.place_id,
+      displayName: p.description,
+      street: p.structured_formatting?.main_text || p.description.split(",")[0],
+      city: "San Francisco",
+      zip: "",
+      lat: null,
+      lng: null,
+      source: "google",
+    }));
+  } catch (err) {
+    // Fall back to Nominatim OSM if Google Maps key is unavailable or fails
+    return autocompleteNominatim(q);
+  }
 }
 
-/** Validate + geocode a structured address. Returns null when Nominatim
- * cannot find it — callers must treat null as "not a real address", and must
- * NOT fall back to a default pin. */
+/**
+ * Resolves a Google Place ID into exact coordinates and structured address.
+ */
+export async function geocodePlaceId(placeId) {
+  if (!placeId) return null;
+  try {
+    const maps = await loadGoogleMaps();
+    const geocoder = new maps.Geocoder();
+    return await new Promise((resolve) => {
+      geocoder.geocode({ placeId }, (results, status) => {
+        if (status === "OK" && results?.[0]) {
+          resolve(extractGoogleComponents(results[0]));
+        } else {
+          resolve(null);
+        }
+      });
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Geocodes an address string/object into coordinates.
+ * Returns null if the address cannot be found or is outside San Francisco.
+ */
 export async function geocode({ street, city, zip }) {
-    const q = [street, city, zip].filter((s) => (s ?? '').trim()).join(', ');
-    if (!q) return null;
-    const url = `${BASE}/search?format=jsonv2&addressdetails=1&limit=1&countrycodes=us&${LANG}&q=${encodeURIComponent(q)}`;
-    const items = await fetchJson(url);
-    return toResult(items?.[0]);
+  const q = [street, city || "San Francisco", zip].filter((s) => (s ?? "").trim()).join(", ");
+  if (!q) return null;
+
+  try {
+    const maps = await loadGoogleMaps();
+    const geocoder = new maps.Geocoder();
+    const sfBounds = new maps.LatLngBounds(
+      new maps.LatLng(SF_BOUNDS.south, SF_BOUNDS.west),
+      new maps.LatLng(SF_BOUNDS.north, SF_BOUNDS.east)
+    );
+
+    return await new Promise((resolve) => {
+      geocoder.geocode(
+        {
+          address: q,
+          bounds: sfBounds,
+          componentRestrictions: { country: "us" },
+        },
+        (results, status) => {
+          if (status === "OK" && results?.[0]) {
+            resolve(extractGoogleComponents(results[0]));
+          } else {
+            resolve(null);
+          }
+        }
+      );
+    });
+  } catch {
+    return geocodeNominatim({ street, city, zip });
+  }
 }
 
-/** Reverse-geocode a map click into the nearest street address. */
+/**
+ * Reverse-geocodes coordinates into the nearest street address.
+ * Rejects any coordinates outside San Francisco.
+ */
 export async function reverseGeocode(lat, lng) {
-    const url = `${BASE}/reverse?format=jsonv2&addressdetails=1&lat=${lat}&lon=${lng}&${LANG}`;
-    const item = await fetchJson(url);
-    return toResult(item);
+  if (!isWithinSanFrancisco(lat, lng)) {
+    return null;
+  }
+
+  try {
+    const maps = await loadGoogleMaps();
+    const geocoder = new maps.Geocoder();
+    return await new Promise((resolve) => {
+      geocoder.geocode({ location: { lat: Number(lat), lng: Number(lng) } }, (results, status) => {
+        if (status === "OK" && results?.[0]) {
+          resolve(extractGoogleComponents(results[0]));
+        } else {
+          resolve(null);
+        }
+      });
+    });
+  } catch {
+    return reverseGeocodeNominatim(lat, lng);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* OpenStreetMap (Nominatim) Fallback Engine                          */
+/* ------------------------------------------------------------------ */
+
+const OSM_BASE = "https://nominatim.openstreetmap.org";
+const LANG = "accept-language=en";
+const osmCache = new Map();
+
+async function fetchOsmJson(url) {
+  if (osmCache.has(url)) return osmCache.get(url);
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!res.ok) throw new Error(`OSM failed: ${res.status}`);
+  const json = await res.json();
+  osmCache.set(url, json);
+  return json;
+}
+
+function toOsmResult(item) {
+  if (!item) return null;
+  const lat = Number(item.lat);
+  const lng = Number(item.lon);
+  if (!isWithinSanFrancisco(lat, lng)) return null;
+
+  const street =
+    [item.address?.house_number, item.address?.road].filter(Boolean).join(" ") ||
+    item.address?.road ||
+    item.display_name?.split(",")[0] ||
+    "";
+
+  return {
+    lat,
+    lng,
+    displayName: item.display_name,
+    street,
+    city: item.address?.city || "San Francisco",
+    zip: item.address?.postcode || "",
+  };
+}
+
+async function autocompleteNominatim(q) {
+  const url = `${OSM_BASE}/search?format=jsonv2&addressdetails=1&limit=5&countrycodes=us&viewbox=${SF_VIEWBOX}&bounded=1&${LANG}&q=${encodeURIComponent(
+    q
+  )}`;
+  const items = await fetchOsmJson(url);
+  return (items ?? []).map(toOsmResult).filter(Boolean);
+}
+
+async function geocodeNominatim({ street, city, zip }) {
+  const q = [street, city, zip].filter((s) => (s ?? "").trim()).join(", ");
+  if (!q) return null;
+  const url = `${OSM_BASE}/search?format=jsonv2&addressdetails=1&limit=1&countrycodes=us&viewbox=${SF_VIEWBOX}&bounded=1&${LANG}&q=${encodeURIComponent(
+    q
+  )}`;
+  const items = await fetchOsmJson(url);
+  return toOsmResult(items?.[0]);
+}
+
+async function reverseGeocodeNominatim(lat, lng) {
+  const url = `${OSM_BASE}/reverse?format=jsonv2&addressdetails=1&lat=${lat}&lon=${lng}&${LANG}`;
+  const item = await fetchOsmJson(url);
+  return toOsmResult(item);
 }

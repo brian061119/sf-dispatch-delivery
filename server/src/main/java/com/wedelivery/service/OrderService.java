@@ -61,16 +61,20 @@ public class OrderService {
         RecommendationContractDto.PackageDto pkg = req.getEffectivePackage();
 
         if (pickup == null || pickup.getLat() == null || pickup.getLng() == null) {
-            log.warn("Pickup coordinates missing from request, falling back to Downtown SF default for demo resilience.");
+            throw new IllegalArgumentException("Pickup coordinates (lat, lng) are required.");
         }
         if (dropoff == null || dropoff.getLat() == null || dropoff.getLng() == null) {
-            log.warn("Dropoff coordinates missing from request, falling back to Mission SF default for demo resilience.");
+            throw new IllegalArgumentException("Dropoff coordinates (lat, lng) are required.");
         }
 
-        BigDecimal pLat = (pickup != null && pickup.getLat() != null) ? pickup.getLat() : new BigDecimal("37.7858");
-        BigDecimal pLng = (pickup != null && pickup.getLng() != null) ? pickup.getLng() : new BigDecimal("-122.4065");
-        BigDecimal dLat = (dropoff != null && dropoff.getLat() != null) ? dropoff.getLat() : new BigDecimal("37.7596");
-        BigDecimal dLng = (dropoff != null && dropoff.getLng() != null) ? dropoff.getLng() : new BigDecimal("-122.4269");
+        BigDecimal pLat = pickup.getLat();
+        BigDecimal pLng = pickup.getLng();
+        BigDecimal dLat = dropoff.getLat();
+        BigDecimal dLng = dropoff.getLng();
+
+        if (!RecommendationService.isWithinSanFrancisco(pLat, pLng) || !RecommendationService.isWithinSanFrancisco(dLat, dLng)) {
+            throw new IllegalArgumentException("Delivery address is outside the San Francisco service area.");
+        }
 
         BigDecimal weight = (pkg != null && pkg.getWeightKg() != null) ? pkg.getWeightKg() : new BigDecimal("1.50");
         BigDecimal volume = new BigDecimal("0.0200");
