@@ -12,6 +12,10 @@
 const BASE = 'https://nominatim.openstreetmap.org';
 // SF bounding box: (left, top, right, bottom) lon/lat.
 const SF_VIEWBOX = '-122.52,37.83,-122.35,37.70';
+// Force English place names. Nominatim otherwise localizes results to the
+// browser's Accept-Language (zh-CN here → 旧金山/加利福尼亚州/美国), and the
+// browser forbids JS from overriding the Accept-Language header directly.
+const LANG = 'accept-language=en';
 
 const cache = new Map();
 
@@ -24,6 +28,12 @@ async function fetchJson(url) {
     return json;
 }
 
+/** Some OSM records carry multi-language aliases joined by ';'
+ * (e.g. "旧金山;舊金山;三藩市"). Keep the first, which is the localized name. */
+function primaryName(value) {
+    return String(value ?? '').split(';')[0].trim();
+}
+
 function toResult(item) {
     if (!item) return null;
     return {
@@ -32,7 +42,7 @@ function toResult(item) {
         displayName: item.display_name,
         // Structured parts for the form (may be missing on sparse results).
         street: [item.address?.house_number, item.address?.road].filter(Boolean).join(' ') || item.address?.road || '',
-        city: item.address?.city || item.address?.town || item.address?.village || 'San Francisco',
+        city: primaryName(item.address?.city || item.address?.town || item.address?.village) || 'San Francisco',
         zip: item.address?.postcode || '',
     };
 }
@@ -43,7 +53,7 @@ function toResult(item) {
 export async function autocomplete(query) {
     const q = (query ?? '').trim();
     if (q.length < 3) return [];
-    const url = `${BASE}/search?format=jsonv2&addressdetails=1&limit=5&countrycodes=us&viewbox=${SF_VIEWBOX}&bounded=1&q=${encodeURIComponent(q)}`;
+    const url = `${BASE}/search?format=jsonv2&addressdetails=1&limit=5&countrycodes=us&viewbox=${SF_VIEWBOX}&bounded=1&${LANG}&q=${encodeURIComponent(q)}`;
     const items = await fetchJson(url);
     return (items ?? []).map(toResult).filter(Boolean);
 }
@@ -54,14 +64,14 @@ export async function autocomplete(query) {
 export async function geocode({ street, city, zip }) {
     const q = [street, city, zip].filter((s) => (s ?? '').trim()).join(', ');
     if (!q) return null;
-    const url = `${BASE}/search?format=jsonv2&addressdetails=1&limit=1&countrycodes=us&q=${encodeURIComponent(q)}`;
+    const url = `${BASE}/search?format=jsonv2&addressdetails=1&limit=1&countrycodes=us&${LANG}&q=${encodeURIComponent(q)}`;
     const items = await fetchJson(url);
     return toResult(items?.[0]);
 }
 
 /** Reverse-geocode a map click into the nearest street address. */
 export async function reverseGeocode(lat, lng) {
-    const url = `${BASE}/reverse?format=jsonv2&addressdetails=1&lat=${lat}&lon=${lng}`;
+    const url = `${BASE}/reverse?format=jsonv2&addressdetails=1&lat=${lat}&lon=${lng}&${LANG}`;
     const item = await fetchJson(url);
     return toResult(item);
 }
