@@ -73,6 +73,7 @@ public class OrderController {
             m.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().format(DateTimeFormatter.ISO_DATE_TIME) : "");
             m.put("packageDescription", o.getPickupAddress() + " -> " + o.getDropoffAddress());
             m.put("estimatedCost", o.getFinalPrice());
+            m.put("vehicleType", o.getVehicleType() != null ? o.getVehicleType().name() : null);
             return m;
         }).collect(Collectors.toList());
 
