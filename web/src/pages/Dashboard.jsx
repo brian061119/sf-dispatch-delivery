@@ -10,6 +10,15 @@ import { useWizard } from "../store/wizard";
 const { Title, Text } = Typography;
 const isActive = (order) => ["PENDING", "IN_TRANSIT"].includes(order.status);
 const trackingHref = (order) => order.trackingCode ? `/track?code=${encodeURIComponent(order.trackingCode)}` : `/order/${order.orderId}`;
+// Greeting follows the browser's local time (Date always uses the visitor's
+// timezone, so no manual tz detection is needed).
+const greeting = () => {
+  const h = new Date().getHours();
+  if (h < 5) return "Late night";
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
+};
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -33,7 +42,7 @@ export default function Dashboard() {
   const activeOrders = list.filter(isActive);
   const recentOrders = list.filter((order) => !isActive(order)).slice(0, 4);
   return <div style={page}>
-    <Title level={2} style={{ marginBottom: 4 }}>Good afternoon, {username} 👋</Title>
+    <Title level={2} style={{ marginBottom: 4 }}>{greeting()}, {username} 👋</Title>
     <Text type="secondary">Manage deliveries, track active orders, and create a new shipment.</Text>
     <Button type="primary" size="large" block onClick={() => navigate("/order/new")} style={createButton}>+ Create a new delivery</Button>
     <Card style={aiCard} size="small" title="🤖 Describe a delivery in one sentence (optional)">
