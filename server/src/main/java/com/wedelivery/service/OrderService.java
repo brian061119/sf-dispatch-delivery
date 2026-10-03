@@ -598,11 +598,14 @@ public class OrderService {
         // 4. Vehicle and station dispatch reallocation:
         boolean stationChanged = !matchedPlan.getStationId().equals(order.getStationId());
         boolean typeChanged = matchedPlan.getVehicleType() != order.getVehicleType();
-        boolean pickupChanged = request.getPickupLat() != null || request.getPickupLng() != null;
+        boolean pickupChanged = request.getPickupLat() != null || request.getPickupLng() != null
+                || (request.getPickupAddress() != null && !request.getPickupAddress().equals(order.getPickupAddress()));
+        boolean dropoffChanged = request.getDropoffLat() != null || request.getDropoffLng() != null
+                || (request.getDropoffAddress() != null && !request.getDropoffAddress().equals(order.getDropoffAddress()));
         boolean specChanged = (request.getPackageWeight() != null && request.getPackageWeight().compareTo(order.getPackageWeight()) != 0)
                 || request.getPackageLengthCm() != null || request.getPackageWidthCm() != null || request.getPackageHeightCm() != null;
 
-        if (stationChanged || typeChanged || pickupChanged || specChanged) {
+        if (stationChanged || typeChanged || pickupChanged || dropoffChanged || specChanged) {
             // Release previous vehicle back to IDLE
             if (order.getVehicleId() != null) {
                 vehicleRepository.findById(order.getVehicleId()).ifPresent(oldV -> {

@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Alert, Button, Card, Col, Descriptions, Form, Input, InputNumber, Modal, Popconfirm, Rate, Row, Spin, Switch, Tag, Tooltip, Typography } from "antd";
+import { Alert, Button, Card, Col, Descriptions, Form, Input, InputNumber, Modal, Popconfirm, Radio, Rate, Row, Spin, Switch, Tag, Tooltip, Typography } from "antd";
 import { EditOutlined } from "@ant-design/icons";
 import { Link, useParams } from "react-router-dom";
 import { cancelOrder, confirmReceipt, getOrder, getOrderReview, submitReview, updateOrder } from "../api/order";
 import { normalizeStatus } from "../api/tracking";
+import { geocode } from "../lib/geocode";
 import { StatusBadge } from "../components/StatusBadge";
 
 const { Title, Text } = Typography;
@@ -15,9 +16,9 @@ const toView = (raw) => ({
   ...raw,
   orderId: raw.orderId ?? raw.orderNumber,
   status: normalizeStatus(raw.status),
-  pickup: raw.pickup ?? (raw.pickupAddress ? { line1: raw.pickupAddress } : undefined),
-  dropoff: raw.dropoff ?? (raw.dropoffAddress ? { line1: raw.dropoffAddress } : undefined),
-  package: raw.package ?? (raw.packageWeight != null ? { weightKg: raw.packageWeight } : undefined),
+  pickup: raw.pickup ?? (raw.pickupAddress ? { line1: raw.pickupAddress, lat: raw.pickupLat, lng: raw.pickupLng } : undefined),
+  dropoff: raw.dropoff ?? (raw.dropoffAddress ? { line1: raw.dropoffAddress, lat: raw.dropoffLat, lng: raw.dropoffLng } : undefined),
+  package: raw.package ?? (raw.packageWeight != null ? { weightKg: raw.packageWeight, volumeM3: raw.packageVolume } : undefined),
   candidate: raw.candidate ?? (raw.vehicleType ? { vehicleType: raw.vehicleType } : {}),
   estimatedCost: raw.estimatedCost ?? raw.finalPrice,
   vehicleType: raw.vehicleType ?? raw.candidate?.vehicleType,
@@ -121,7 +122,7 @@ export default function OrderDetail() {
     setUpgradeBusy(true);
     setError("");
     try {
-      const updated = await updateOrder(orderId, { upgradeToDrone: true });
+      const updated = await updateOrder(orderId, { upgradeToDrone: true, vehicleType: "DRONE" });
       setOrder(toView(updated));
       setMessage("Order upgraded to Drone Express! Surcharge has been processed.");
     } catch (err) {
@@ -133,9 +134,14 @@ export default function OrderDetail() {
 
   function openEditModal() {
     editForm.setFieldsValue({
+      vehicleType: order?.vehicleType || "ROBOT",
+      pickupAddress: order?.pickup?.line1 || order?.pickupAddress || "",
       dropoffAddress: order?.dropoff?.line1 || order?.dropoffAddress || "",
       packageDescription: order?.packageDescription || order?.package?.description || "",
       packageWeight: order?.package?.weightKg || order?.packageWeight || 1.5,
+      packageLengthCm: 20,
+      packageWidthCm: 15,
+      packageHeightCm: 10,
     });
     setEditModalVisible(true);
   }
@@ -144,14 +150,55 @@ export default function OrderDetail() {
     setEditBusy(true);
     setError("");
     try {
+      let pLat = order?.pickup?.lat || order?.pickupLat;
+      let pLng = order?.pickup?.lng || order?.pickupLng;
+      const currentPickup = order?.pickup?.line1 || order?.pickupAddress || "";
+      if (values.pickupAddress && values.pickupAddress.trim() !== currentPickup.trim()) {
+        try {
+          const geo = await geocode({ street: values.pickupAddress.trim() });
+          if (geo?.lat && geo?.lng) {
+            pLat = geo.lat;
+            pLng = geo.lng;
+          }
+        } catch {
+          // fallback to existing coordinates
+        }
+      }
+
+      let dLat = order?.dropoff?.lat || order?.dropoffLat;
+      let dLng = order?.dropoff?.lng || order?.dropoffLng;
+      const currentDropoff = order?.dropoff?.line1 || order?.dropoffAddress || "";
+      if (values.dropoffAddress && values.dropoffAddress.trim() !== currentDropoff.trim()) {
+        try {
+          const geo = await geocode({ street: values.dropoffAddress.trim() });
+          if (geo?.lat && geo?.lng) {
+            dLat = geo.lat;
+            dLng = geo.lng;
+          }
+        } catch {
+          // fallback to existing coordinates
+        }
+      }
+
       const payload = {
+        vehicleType: values.vehicleType,
+        upgradeToDrone: values.vehicleType === "DRONE" && order?.vehicleType !== "DRONE",
+        pickupAddress: values.pickupAddress?.trim(),
+        pickupLat: pLat,
+        pickupLng: pLng,
         dropoffAddress: values.dropoffAddress?.trim(),
+        dropoffLat: dLat,
+        dropoffLng: dLng,
         packageDescription: values.packageDescription?.trim(),
         packageWeight: values.packageWeight ? Number(values.packageWeight) : undefined,
+        packageLengthCm: values.packageLengthCm ? Number(values.packageLengthCm) : undefined,
+        packageWidthCm: values.packageWidthCm ? Number(values.packageWidthCm) : undefined,
+        packageHeightCm: values.packageHeightCm ? Number(values.packageHeightCm) : undefined,
       };
+
       const updated = await updateOrder(orderId, payload);
       setOrder(toView(updated));
-      setMessage("Order details updated successfully! Price adjustments have been settled.");
+      setMessage("Order details updated successfully! Carrier route, vehicle assignment, and price adjustments have been settled.");
       setEditModalVisible(false);
     } catch (err) {
       setError(err?.response?.data?.message || "Could not update order.");
@@ -225,7 +272,17 @@ export default function OrderDetail() {
 
         {/* Package & Cost Card with Drone Express upgrade option */}
         <Col xs={24} lg={12}>
-          <Card title="Package & cost" style={cardStyle}>
+          <Card
+            title="Package & cost"
+            style={cardStyle}
+            extra={
+              canModify ? (
+                <Button size="small" icon={<EditOutlined />} onClick={openEditModal}>
+                  Edit
+                </Button>
+              ) : null
+            }
+          >
             <Descriptions column={1}>
               <Descriptions.Item label="Package">{order.packageDescription || order.package?.description || "Package"}</Descriptions.Item>
               <Descriptions.Item label="Weight">{order.package?.weightKg ? `${order.package.weightKg} kg` : "—"}</Descriptions.Item>
@@ -373,41 +430,96 @@ export default function OrderDetail() {
         open={editModalVisible}
         onCancel={() => setEditModalVisible(false)}
         footer={null}
+        width={580}
         destroyOnClose
       >
         <Alert
           type="info"
           showIcon
           message="Single Modification Policy"
-          description="Orders can only be modified once before pickup begins. Updating destination or weight will recalculate delivery charges and re-verify carrier availability."
-          style={{ marginBottom: 16 }}
+          description="Orders can only be modified once before pickup begins. Modifying delivery method, addresses, or package dimensions will re-calculate routes and delivery fees."
+          style={{ marginBottom: 18 }}
         />
         <Form
           form={editForm}
           layout="vertical"
           onFinish={handleEditOrder}
         >
+          {/* 1. Delivery Method */}
           <Form.Item
-            name="dropoffAddress"
-            label="Destination Address"
-            rules={[{ required: true, message: "Please enter the destination address" }]}
+            name="vehicleType"
+            label={<Text strong>Delivery Method</Text>}
+            rules={[{ required: true }]}
           >
-            <Input placeholder="Enter destination address in San Francisco" />
+            <Radio.Group buttonStyle="solid" style={{ width: "100%", display: "flex", gap: 10 }}>
+              <Radio.Button value="ROBOT" style={{ flex: 1, textAlign: "center", height: 42, lineHeight: "40px" }}>
+                🤖 Ground Robot (Max 15kg)
+              </Radio.Button>
+              <Radio.Button value="DRONE" style={{ flex: 1, textAlign: "center", height: 42, lineHeight: "40px" }}>
+                ⚡ Drone Express (Max 3kg)
+              </Radio.Button>
+            </Radio.Group>
           </Form.Item>
+
+          {/* 2. Addresses */}
+          <Row gutter={12}>
+            <Col span={24}>
+              <Form.Item
+                name="pickupAddress"
+                label={<Text strong>🟢 Pickup Address</Text>}
+                rules={[{ required: true, message: "Please enter pickup address" }]}
+              >
+                <Input placeholder="Enter pickup address in San Francisco" />
+              </Form.Item>
+            </Col>
+            <Col span={24}>
+              <Form.Item
+                name="dropoffAddress"
+                label={<Text strong>🔴 Destination Address</Text>}
+                rules={[{ required: true, message: "Please enter destination address" }]}
+              >
+                <Input placeholder="Enter destination address in San Francisco" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          {/* 3. Package Notes */}
           <Form.Item
             name="packageDescription"
-            label="Delivery Notes / Description"
+            label={<Text strong>Delivery Notes / Description</Text>}
           >
-            <Input placeholder="e.g. Leave with concierge, Gate code #1234" />
+            <Input placeholder="e.g. Fragile electronics, leave at concierge" />
           </Form.Item>
-          <Form.Item
-            name="packageWeight"
-            label="Package Weight (kg)"
-            rules={[{ required: true, message: "Please enter package weight" }]}
-          >
-            <InputNumber min={0.1} max={15.0} step={0.1} style={{ width: "100%" }} placeholder="e.g. 2.0" />
-          </Form.Item>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
+
+          {/* 4. Package Weight & Dimensions */}
+          <Row gutter={12}>
+            <Col span={12}>
+              <Form.Item
+                name="packageWeight"
+                label={<Text strong>Weight (kg)</Text>}
+                rules={[{ required: true, message: "Please specify weight" }]}
+              >
+                <InputNumber min={0.1} max={15.0} step={0.1} style={{ width: "100%" }} placeholder="e.g. 2.0" />
+              </Form.Item>
+            </Col>
+            <Col span={4}>
+              <Form.Item name="packageLengthCm" label={<Text strong>Length</Text>}>
+                <InputNumber min={1} max={200} style={{ width: "100%" }} placeholder="cm" />
+              </Form.Item>
+            </Col>
+            <Col span={4}>
+              <Form.Item name="packageWidthCm" label={<Text strong>Width</Text>}>
+                <InputNumber min={1} max={200} style={{ width: "100%" }} placeholder="cm" />
+              </Form.Item>
+            </Col>
+            <Col span={4}>
+              <Form.Item name="packageHeightCm" label={<Text strong>Height</Text>}>
+                <InputNumber min={1} max={200} style={{ width: "100%" }} placeholder="cm" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
             <Button onClick={() => setEditModalVisible(false)}>Cancel</Button>
             <Button type="primary" htmlType="submit" loading={editBusy}>
               Confirm Modification
