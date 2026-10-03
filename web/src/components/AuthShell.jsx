@@ -46,8 +46,8 @@ export function AuthShell({ children }) {
         className="auth-brand"
         aria-hidden
         style={{
-          flex: "0 0 46%",
-          maxWidth: 560,
+          flex: "1 1 0",
+          maxWidth: 620,
           background: BRAND_HERO_BG,
           backgroundSize: HERO_BG_SIZE,
           color: "#fff",

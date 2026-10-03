@@ -173,7 +173,10 @@ export default function GuestTrack() {
             </div>
 
             {!tracking && !error && !loading && (
-                <div>
+                // flex:1 + centered → the empty state sits in the middle of the
+                // free space instead of hugging the hero, which left a large
+                // bare gap above the footer on tall windows.
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                     <Row gutter={[16, 16]}>
                         {steps.map((step, index) => (
                             <Col xs={24} md={8} key={step.title}>
