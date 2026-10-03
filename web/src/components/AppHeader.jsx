@@ -19,13 +19,23 @@ export function AppHeader() {
     background: "#fff",
     borderBottom: "1px solid #f0f0f0",
     paddingInline: 24,
+    // Sticky so the nav follows on the tall public pages (track/auth).
+    position: "sticky",
+    top: 0,
+    zIndex: 100,
+  };
+  const brandLinkStyle = {
+    backgroundImage: "linear-gradient(135deg, #1677ff 0%, #722ed1 100%)",
+    WebkitBackgroundClip: "text",
+    backgroundClip: "text",
+    WebkitTextFillColor: "transparent",
   };
   if (!token) {
     const onAuthPage = pathname === "/login" || pathname === "/register";
     return (
       <Layout.Header style={barStyle}>
         <Typography.Title level={4} style={{ margin: 0 }}>
-          <Link to="/track" style={{ color: "inherit" }}>
+          <Link to="/track" style={brandLinkStyle}>
             {BRAND_NAME}
           </Link>
         </Typography.Title>
@@ -43,7 +53,7 @@ export function AppHeader() {
   return (
     <Layout.Header style={barStyle}>
       <Typography.Title level={4} style={{ margin: 0 }}>
-        <Link to="/dashboard" style={{ color: "inherit" }}>
+        <Link to="/dashboard" style={brandLinkStyle}>
           {BRAND_NAME}
         </Link>
       </Typography.Title>
