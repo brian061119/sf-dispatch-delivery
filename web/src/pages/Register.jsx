@@ -3,6 +3,7 @@ import { Alert, Button, Form, Input, Typography } from "antd";
 import { LockOutlined, MailOutlined, UserOutlined } from "@ant-design/icons";
 import { Link, useNavigate } from "react-router-dom";
 import { AuthShell } from "../components/AuthShell";
+import { apiErrorMessage } from "../lib/http";
 import { useAuth } from "../store/auth";
 
 const { Title, Text } = Typography;
@@ -24,8 +25,7 @@ export default function Register() {
       console.error("Registration failed:", err);
 
       setError(
-        err?.response?.data?.message ||
-          "Unable to create your account. Please try again."
+        apiErrorMessage(err, "Unable to create your account. Please try again.")
       );
     }
   };

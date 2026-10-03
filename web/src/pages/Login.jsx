@@ -3,6 +3,7 @@ import { Alert, Button, Form, Input, Typography } from "antd";
 import { LockOutlined, UserOutlined } from "@ant-design/icons";
 import { Link, useNavigate } from "react-router-dom";
 import { AuthShell } from "../components/AuthShell";
+import { apiErrorMessage } from "../lib/http";
 import { useAuth } from "../store/auth";
 
 const { Title, Text } = Typography;
@@ -23,8 +24,7 @@ export default function Login() {
       console.error("Login failed:", err);
 
       setError(
-        err?.response?.data?.message ||
-          "Unable to log in. Please check your username and password."
+        apiErrorMessage(err, "Unable to log in. Please check your username and password.")
       );
     }
   };

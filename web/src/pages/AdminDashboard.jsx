@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Alert, Card, Col, Row, Spin, Statistic, Table, Tag, Typography } from "antd";
 import { getAdminDashboard } from "../api/admin";
 import { StatusBadge } from "../components/StatusBadge";
+import { apiErrorMessage } from "../lib/http";
 
 const { Title, Text } = Typography;
 
@@ -20,7 +21,7 @@ export default function AdminDashboard() {
       .catch((err) => {
         if (!live) return;
         if (err?.response?.status === 403) setForbidden(true);
-        else setError(err?.response?.data?.message || "Unable to load the admin dashboard.");
+        else setError(apiErrorMessage(err, "Unable to load the admin dashboard."));
       })
       .finally(() => live && setLoading(false));
     return () => { live = false; };
