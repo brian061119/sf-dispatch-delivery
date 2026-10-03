@@ -22,12 +22,17 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 三方案智能推荐 / 智能调动引擎。
  *
  * 载具准入以 machines 自身的基础信息为准（最大载荷、默认最大速度、续航），
  * 不使用类型级硬编码常量；类型默认值只在机器未上报能力字段时兜底（见 VehicleType）。
+ *
+ * 站点选择：按「站点→起点 + 站点→终点」的直线距离之和升序，作为「耗时最短优先」的候选顺序；
+ *          再按顾客所需载具类型逐站查找首个可派发该类型的站点，耗时最短的站点无可用载具时
+ *          自动退到次优站点，以此类推（顾客自投并指定站点时除外）。
  *
  * 单台载具需同时通过三重准入：
  *   1. 载荷准入：包裹重量 / 体积不超过载具最大载荷（VIP 宽免 10%）
@@ -52,7 +57,7 @@ public class RecommendationService {
 
     /** 续航冗余：最大可配送路程只允许用掉 90% */
     private static final double RANGE_SAFETY_RATIO = 0.9;
-    /** 电量冗余：载重加权预测耗电上限（%）与返站后剩余电量下限（%） */
+    /** 电量冗余：载重加权预测耗电上限（%）与返站后剩余电量下限（%），安全值不低于 10% */
     private static final double MAX_ENERGY_DELTA_PERCENT = 90.0;
     private static final double MIN_RESERVE_BATTERY_PERCENT = 10.0;
     /** 载重对能耗的加权幅度 */
@@ -70,31 +75,31 @@ public class RecommendationService {
             return QuoteResponse.builder().plans(options).isVipUser(isVip).build();
         }
 
-        // 查找或指定最优服务分配站
-        Station bestStation = selectBestStation(stations, request);
+        // 候选站点：自选站点时仅该站点；否则按「站点→起点 + 站点→终点」距离之和升序
+        List<Station> candidateStations = candidateStations(stations, request);
 
-        // 1. 方案一：Fastest (无人机极速达)
-        Candidate drone = evaluate(request, bestStation, VehicleType.DRONE, isVip);
-        PlanOptionDto dronePlan = drone == null ? null : buildOption(request, bestStation, VehicleType.DRONE, drone, isVip);
+        // 1. 方案一：Fastest (无人机极速达)，逐站寻找首个可派发无人机的站点
+        Candidate drone = selectForType(candidateStations, request, VehicleType.DRONE, isVip);
+        PlanOptionDto dronePlan = drone == null ? null : buildOption(request, VehicleType.DRONE, drone, isVip);
         if (dronePlan != null) {
             options.add(dronePlan);
         }
 
-        // 2. 方案二：Best Value (地面机器人经济达)
-        Candidate robot = evaluate(request, bestStation, VehicleType.ROBOT, isVip);
-        PlanOptionDto robotPlan = robot == null ? null : buildOption(request, bestStation, VehicleType.ROBOT, robot, isVip);
+        // 2. 方案二：Best Value (地面机器人经济达)，逐站寻找首个可派发机器人的站点
+        Candidate robot = selectForType(candidateStations, request, VehicleType.ROBOT, isVip);
+        PlanOptionDto robotPlan = robot == null ? null : buildOption(request, VehicleType.ROBOT, robot, isVip);
         if (robotPlan != null) {
             options.add(robotPlan);
         }
 
         // 3. 方案三：Off-Peak Eco (错峰低碳延时方案)，以经济达为基准，无则退化为极速达
         PlanOptionDto offPeakBase = robotPlan != null ? robotPlan : dronePlan;
-        PlanOptionDto offPeakPlan = evaluateOffPeakOption(bestStation, offPeakBase, isVip);
+        PlanOptionDto offPeakPlan = evaluateOffPeakOption(offPeakBase, isVip);
         if (offPeakPlan != null) {
             options.add(offPeakPlan);
         }
 
-        log.info("Recommendation for station {}: {} plan(s) generated", bestStation.getId(), options.size());
+        log.info("Recommendation generated: {} plan(s)", options.size());
         return QuoteResponse.builder()
                 .plans(options)
                 .isVipUser(isVip)
@@ -102,26 +107,54 @@ public class RecommendationService {
                 .build();
     }
 
-    private Station selectBestStation(List<Station> stations, QuoteRequest request) {
+    /**
+     * 候选服务分配站：
+     *   1. 顾客自投并指定站点时，仅该站点参与；
+     *   2. 否则按「站点→起点 + 站点→终点」直线距离之和升序排列，
+     *      作为「耗时最短优先」的候选顺序，供逐站兜底查找。
+     */
+    private List<Station> candidateStations(List<Station> stations, QuoteRequest request) {
         if (Boolean.TRUE.equals(request.getIsStationPickup()) && request.getStationId() != null) {
-            return stations.stream()
+            List<Station> forced = stations.stream()
                     .filter(s -> s.getId().equals(request.getStationId()))
-                    .findFirst()
-                    .orElse(stations.get(0));
+                    .collect(Collectors.toList());
+            if (!forced.isEmpty()) {
+                return forced;
+            }
         }
 
-        // 寻找离取件地最近的站点
         double pLat = request.getPickupLat().doubleValue();
         double pLng = request.getPickupLng().doubleValue();
+        double dLat = request.getDropoffLat().doubleValue();
+        double dLng = request.getDropoffLng().doubleValue();
 
         return stations.stream()
-                .min(Comparator.comparingDouble(s ->
-                        routeService.calculateStraightDistance(
-                                s.getLatitude().doubleValue(), s.getLongitude().doubleValue(),
-                                pLat, pLng
-                        )
-                ))
-                .orElse(stations.get(0));
+                .sorted(Comparator.comparingDouble(s -> distanceToTrip(s, pLat, pLng, dLat, dLng)))
+                .collect(Collectors.toList());
+    }
+
+    /** 站点到起点与终点的直线距离之和（km）——配送站耗时排序的判断标准 */
+    private double distanceToTrip(Station station, double pickupLat, double pickupLng,
+                                  double dropoffLat, double dropoffLng) {
+        double lat = station.getLatitude().doubleValue();
+        double lng = station.getLongitude().doubleValue();
+        return routeService.calculateStraightDistance(lat, lng, pickupLat, pickupLng)
+                + routeService.calculateStraightDistance(lat, lng, dropoffLat, dropoffLng);
+    }
+
+    /**
+     * 按候选顺序逐站做该类型载具的全量准入，返回首个能派发的站点筛选结果；
+     * 耗时最短的站点无可用载具时自动退到次优站点，全部站点都不可派发时返回 null。
+     */
+    private Candidate selectForType(List<Station> candidateStations, QuoteRequest req,
+                                    VehicleType type, boolean isVip) {
+        for (Station station : candidateStations) {
+            Candidate candidate = evaluate(req, station, type, isVip);
+            if (candidate != null) {
+                return candidate;
+            }
+        }
+        return null;
     }
 
     /**
@@ -168,7 +201,7 @@ public class RecommendationService {
                 continue;
             }
 
-            // 3. 电量准入（10% 安全冗余 + 载重加权能耗）
+            // 3. 电量准入（全程载重加权预测耗电，到站后须留 ≥ 10% 安全电量）
             double weightFactor = 1.0 + (weight / maxWeight) * LOAD_WEIGHT_FACTOR_SPAN;
             double energyDelta = distance * energyRate * weightFactor;
             if (energyDelta > MAX_ENERGY_DELTA_PERCENT) {
@@ -186,6 +219,7 @@ public class RecommendationService {
         }
 
         Candidate candidate = new Candidate();
+        candidate.station = station;
         candidate.closedDistance = closedDistance;
         candidate.admissibleCount = admissible.size();
         candidate.planned = admissible.stream()
@@ -194,9 +228,10 @@ public class RecommendationService {
         return candidate;
     }
 
-    private PlanOptionDto buildOption(QuoteRequest req, Station station, VehicleType type,
+    private PlanOptionDto buildOption(QuoteRequest req, VehicleType type,
                                       Candidate candidate, boolean isVip) {
         Pricing pricing = type == VehicleType.DRONE ? DRONE_PRICING : ROBOT_PRICING;
+        Station station = candidate.station;
         BigDecimal closedDistance = candidate.closedDistance;
 
         BigDecimal originPrice = pricing.base
@@ -232,7 +267,7 @@ public class RecommendationService {
                 .build();
     }
 
-    private PlanOptionDto evaluateOffPeakOption(Station station, PlanOptionDto basePlan, boolean isVip) {
+    private PlanOptionDto evaluateOffPeakOption(PlanOptionDto basePlan, boolean isVip) {
         if (basePlan == null) {
             return null;
         }
@@ -256,8 +291,8 @@ public class RecommendationService {
         return PlanOptionDto.builder()
                 .planType(PlanType.OFF_PEAK)
                 .vehicleType(basePlan.getVehicleType())
-                .stationId(station.getId())
-                .stationName(station.getName())
+                .stationId(basePlan.getStationId())
+                .stationName(basePlan.getStationName())
                 .totalDistance(basePlan.getTotalDistance())
                 .estimatedMinutes(basePlan.getEstimatedMinutes() + 60)
                 .originPrice(originPrice)
@@ -392,8 +427,9 @@ public class RecommendationService {
                 .build();
     }
 
-    /** 某类型载具的筛选结果：闭环里程、通过准入的台数、被选中的那台 */
+    /** 某类型载具的筛选结果：所在站点、闭环里程、通过准入的台数、被选中的那台 */
     private static class Candidate {
+        private Station station;
         private BigDecimal closedDistance;
         private int admissibleCount;
         private Vehicle planned;
