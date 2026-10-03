@@ -5,6 +5,7 @@ import { cancelOrder } from "../api/order";
 import { StatusBadge } from "../components/StatusBadge";
 import { VehicleIcon } from "../components/VehicleIcon";
 import { useOrders } from "../store/orders";
+import { apiErrorMessage } from "../lib/http";
 
 const { Title } = Typography;
 
@@ -33,7 +34,7 @@ export default function OrderHistory() {
       if (err?.response?.status === 404) {
         message.warning("Cancel is not supported by the backend yet (API pending).");
       } else {
-        message.error(err?.response?.data?.message || "Could not cancel this order.");
+        message.error(apiErrorMessage(err, "Could not cancel this order."));
       }
     } finally { setCancelBusyId(null); }
   }

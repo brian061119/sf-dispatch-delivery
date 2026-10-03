@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { cancelOrder, confirmReceipt, getOrder, submitReview } from "../api/order";
 import { normalizeStatus } from "../api/tracking";
 import { StatusBadge } from "../components/StatusBadge";
+import { apiErrorMessage } from "../lib/http";
 
 const { Title, Text } = Typography;
 const formatAddress = (value) => value?.line1 ? [value.line1, value.city, value.zip].filter(Boolean).join(", ") : "Address details are unavailable";
@@ -32,11 +33,11 @@ export default function OrderDetail() {
   const [cancelBusy, setCancelBusy] = useState(false);
   const [message, setMessage] = useState("");
   useEffect(() => { let live = true; getOrder(orderId).then((data) => { if (live) setOrder(toView(data)); }).catch(() => live && setError("Unable to load this order.")).finally(() => live && setLoading(false)); return () => { live = false; }; }, [orderId]);
-  async function receipt() { setReceiptBusy(true); setError(""); try { const result = await confirmReceipt(orderId); setOrder((current) => ({ ...current, status: result.status })); setMessage("Receipt confirmed. Thank you!"); } catch (err) { setError(err?.response?.data?.message || "Could not confirm receipt."); } finally { setReceiptBusy(false); } }
+  async function receipt() { setReceiptBusy(true); setError(""); try { const result = await confirmReceipt(orderId); setOrder((current) => ({ ...current, status: result.status })); setMessage("Receipt confirmed. Thank you!"); } catch (err) { setError(apiErrorMessage(err, "Could not confirm receipt.")); } finally { setReceiptBusy(false); } }
   async function review(values) { setReviewBusy(true); setError(""); try { await submitReview(orderId, values); setMessage("Thanks for your feedback!"); } catch (err) { setError(err?.response?.status === 404 ? "Review submission is not enabled by the backend yet." : "Could not submit your review."); } finally { setReviewBusy(false); } }
   // Cancel is contract-external until the backend ships the endpoint; 404 →
   // explain instead of failing. Only cancellable while PENDING / IN_TRANSIT.
-  async function doCancel() { setCancelBusy(true); setError(""); try { const result = await cancelOrder(orderId); setOrder((current) => ({ ...current, status: result.status ?? "CANCELLED" })); setMessage("Order cancelled."); } catch (err) { setError(err?.response?.status === 404 ? "Cancel is not supported by the backend yet (API pending)." : err?.response?.data?.message || "Could not cancel this order."); } finally { setCancelBusy(false); } }
+  async function doCancel() { setCancelBusy(true); setError(""); try { const result = await cancelOrder(orderId); setOrder((current) => ({ ...current, status: result.status ?? "CANCELLED" })); setMessage("Order cancelled."); } catch (err) { setError(err?.response?.status === 404 ? "Cancel is not supported by the backend yet (API pending)." : apiErrorMessage(err, "Could not cancel this order.")); } finally { setCancelBusy(false); } }
   if (loading) return <div style={{ minHeight: 450, display: "grid", placeItems: "center" }}><Spin size="large" /></div>;
   if (error && !order) return <Alert type="error" showIcon message={error} style={{ marginTop: 30 }} />;
   const status = order.status || "PENDING";
