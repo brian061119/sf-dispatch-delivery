@@ -38,12 +38,17 @@ export async function submitReview(orderId, body) {
     const { data } = await http.post(`/orders/${orderId}/review`, body);
     return data;
 }
-// Cancel is CONTRACT-EXTERNAL: the backend has no cancel endpoint yet
-// (requested from the backend team 2026-09-30). Until PATCH /orders/:id/cancel
-// ships, a real call returns 404 and the UI shows "not supported yet" instead
-// of breaking. Works today under VITE_MOCK=1.
+// PATCH /api/orders/:orderId/cancel is supported by the backend:
+// Cancels order, releases vehicle to IDLE, and processes refund.
 export async function cancelOrder(orderId) {
     if (import.meta.env.VITE_MOCK === '1') return mock.cancelOrder(orderId);
     const { data } = await http.patch(`/orders/${orderId}/cancel`);
     return data;
 }
+
+// PATCH /api/orders/:orderId (Update delivery mode, address, specs before transit; 1 modification limit)
+export async function updateOrder(orderId, body) {
+    const { data } = await http.patch(`/orders/${orderId}`, body);
+    return data;
+}
+

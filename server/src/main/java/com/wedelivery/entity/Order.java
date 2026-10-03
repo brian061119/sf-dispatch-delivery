@@ -26,14 +26,14 @@ public class Order {
     @Column(name = "order_number", nullable = false, unique = true, length = 64)
     private String orderNumber;
 
-    // 公开追踪码: 随机不可猜测，持有者无需登录即可只读查看物流状态
+    // Public tracking code: random unguessable token allowing guest users read-only tracking access
     @Column(name = "tracking_code", nullable = false, unique = true, length = 32)
     private String trackingCode;
 
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    // 仅用于 JPA 关联；序列化时忽略，避免懒加载代理报错及泄露关联实体 (如用户密码哈希)
+    // JPA association only: ignored in JSON serialization to avoid proxy issues and credential exposure
     @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", insertable = false, updatable = false)
@@ -42,7 +42,7 @@ public class Order {
     @Column(name = "station_id", nullable = false)
     private Long stationId;
 
-    // 仅用于 JPA 关联；序列化时忽略，避免懒加载代理报错及泄露关联实体 (如用户密码哈希)
+    // JPA association only: ignored in JSON serialization to avoid proxy issues and credential exposure
     @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "station_id", insertable = false, updatable = false)
@@ -51,7 +51,7 @@ public class Order {
     @Column(name = "vehicle_id")
     private Long vehicleId;
 
-    // 仅用于 JPA 关联；序列化时忽略，避免懒加载代理报错及泄露关联实体 (如用户密码哈希)
+    // JPA association only: ignored in JSON serialization to avoid proxy issues and credential exposure
     @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vehicle_id", insertable = false, updatable = false)
@@ -117,6 +117,24 @@ public class Order {
     @Column(name = "actual_delivery_time")
     private LocalDateTime actualDeliveryTime;
 
+    @Column(name = "cancellation_fee", precision = 10, scale = 2)
+    private BigDecimal cancellationFee;
+
+    @Column(name = "refund_amount", precision = 10, scale = 2)
+    private BigDecimal refundAmount;
+
+    @Column(name = "return_station_id")
+    private Long returnStationId;
+
+    @Column(name = "has_been_modified", nullable = false)
+    private Boolean hasBeenModified;
+
+    @Column(name = "modified_count", nullable = false)
+    private Integer modifiedCount;
+
+    @Transient
+    private Boolean droneUpgradeAvailable;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -130,6 +148,12 @@ public class Order {
         }
         if (isStationPickup == null) {
             isStationPickup = false;
+        }
+        if (hasBeenModified == null) {
+            hasBeenModified = false;
+        }
+        if (modifiedCount == null) {
+            modifiedCount = 0;
         }
         createdAt = LocalDateTime.now();
     }

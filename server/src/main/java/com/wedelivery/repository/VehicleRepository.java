@@ -19,13 +19,15 @@ public interface VehicleRepository extends JpaRepository<Vehicle, Long> {
 
     List<Vehicle> findByStationIdAndVehicleTypeAndStatus(Long stationId, VehicleType vehicleType, VehicleStatus status);
 
+    List<Vehicle> findByVehicleTypeAndStatus(VehicleType vehicleType, VehicleStatus status);
+
     List<Vehicle> findByStationId(Long stationId);
 
     Optional<Vehicle> findByVehicleCode(String vehicleCode);
 
     List<Vehicle> findByStatus(VehicleStatus status);
 
-    // 下单时的原子悲观锁查询可用车辆，锁定首辆满足条件的载具
+    // Pessimistic write lock query to find available vehicles during order dispatch/booking, locking eligible vehicles
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT v FROM Vehicle v WHERE v.stationId = :stationId " +
            "AND v.vehicleType = :vehicleType " +

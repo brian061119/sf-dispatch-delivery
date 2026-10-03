@@ -20,7 +20,7 @@ public class AdminDashboardDto {
     private List<StationSummaryDto> stations;
     private Long totalVehicles;
     private Long idleVehicles;
-    /** 配送中载具数（字段名保留 busyVehicles 以免影响既有前端，语义即 IN_DELIVERY） */
+    /** Number of vehicles in delivery (fieldName kept as busyVehicles for frontend compatibility) */
     private Long busyVehicles;
     private Long chargingVehicles;
     private Long faultVehicles;
@@ -60,7 +60,7 @@ public class AdminDashboardDto {
         private BigDecimal cruiseSpeed;
         private BigDecimal enduranceMinutes;
         private BigDecimal maxDeliverableDistanceKm;
-        /** 0=不在任何站点，1/2/3=位于对应站点 */
+        /** Location code: 0 = not at station, 1/2/3 = docked at corresponding station ID */
         private Integer locationCode;
         private BigDecimal currentSpeed;
         private LocalDateTime updatedAt;
@@ -72,12 +72,15 @@ public class AdminDashboardDto {
     @Builder
     public static class RecentOrderDto {
         private String orderNumber;
+        private String orderId;
+        private String packageDescription;
         private String customerUsername;
         private String stationName;
         private String vehicleCode;
         private VehicleType vehicleType;
         private OrderStatus status;
         private BigDecimal finalPrice;
+        private BigDecimal estimatedCost;
         private LocalDateTime createdAt;
     }
 }

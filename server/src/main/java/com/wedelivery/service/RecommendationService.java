@@ -66,6 +66,24 @@ public class RecommendationService {
     private static final BigDecimal OFF_PEAK_DISCOUNT_RATE = new BigDecimal("0.15"); // 15% off
     private static final BigDecimal VIP_DISCOUNT_RATE = new BigDecimal("0.10"); // VIP 额外 9 折
 
+    /**
+     * Calculates the minimum initial battery level required for a vehicle to execute
+     * the closed-loop delivery and retain at least MIN_RESERVE_BATTERY_PERCENT (10%) safety reserve.
+     */
+    public BigDecimal calculateRequiredInitialBattery(BigDecimal closedDistance, VehicleType vehicleType, BigDecimal packageWeight) {
+        if (closedDistance == null || vehicleType == null) {
+            return BigDecimal.valueOf(MIN_RESERVE_BATTERY_PERCENT).setScale(2, RoundingMode.HALF_UP);
+        }
+        double distance = closedDistance.doubleValue();
+        double energyRate = vehicleType.getEnergyRatePercentPerKm().doubleValue();
+        double weight = packageWeight != null ? packageWeight.doubleValue() : 1.5;
+        double maxWeight = vehicleType.getDefaultMaxWeight().doubleValue();
+        double weightFactor = 1.0 + (weight / maxWeight) * LOAD_WEIGHT_FACTOR_SPAN;
+        double energyDelta = distance * energyRate * weightFactor;
+        double minRequired = energyDelta + MIN_RESERVE_BATTERY_PERCENT;
+        return BigDecimal.valueOf(minRequired).setScale(2, RoundingMode.HALF_UP);
+    }
+
     public QuoteResponse generateRecommendations(QuoteRequest request, User currentUser) {
         boolean isVip = currentUser != null && currentUser.getRole() == Role.VIP;
         List<Station> stations = stationRepository.findAll();

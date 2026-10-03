@@ -26,12 +26,12 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * demo 模拟器：代替真实的「机器接入 + 地图接入」心跳，把载具的实时信息推进起来。
+ * Demo Simulator: Replaces hardware telemetry and map polling heartbeats to advance realtime vehicle states.
  *
- * 位置推进不重新实现插值数学，而是复用 {@link TrackingService#trackOrder}——
- * 追踪接口本身已经把插值坐标同步回载具（见 TrackingService 的实时信息同步段），
- * 因此模拟器只需触发它，保证载具实时信息与追踪页面永远一致。
+ * Position progression leverages {@link TrackingService#trackOrder} interpolation so that vehicle coordinates
+ * and client tracking views stay completely synchronized.
  */
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -44,11 +44,11 @@ public class SimulationService {
     private final VehicleService vehicleService;
     private final RouteService routeService;
 
-    /** 一次 tick 代表的模拟行驶时长（分钟） */
+    /** Simulated driving duration per tick (minutes) */
     private static final double TICK_MINUTES = 1.0;
-    /** 充电速率：每次 tick 补充的电量百分比 */
+    /** Recharge rate: percentage of battery recharged per tick */
     private static final BigDecimal CHARGE_RATE_PER_TICK = new BigDecimal("10.00");
-    /** 视为已抵达站点的距离阈值 km，与 VehicleService 的停驻半径保持一致口径 */
+    /** Distance threshold (km) to consider vehicle arrived at station, aligned with VehicleService parking radius */
     private static final double ARRIVE_RADIUS_KM = 0.15;
 
     private static final List<OrderStatus> ACTIVE_ORDER_STATUSES =
@@ -59,7 +59,7 @@ public class SimulationService {
         LocalDateTime now = LocalDateTime.now();
         Set<Long> movingVehicleIds = new HashSet<>();
 
-        // 1. 推进所有在途订单：复用追踪插值，坐标会被写回载具实时信息
+        // 1. Advance all active orders: interpolate positions and update vehicle realtime coords
         List<Order> activeOrders = orderRepository.findByStatusIn(ACTIVE_ORDER_STATUSES);
         for (Order order : activeOrders) {
             trackingService.trackOrder(order.getOrderNumber());
@@ -78,14 +78,17 @@ public class SimulationService {
 
         for (Vehicle v : vehicleRepository.findAll()) {
             if (v.getStatus() == VehicleStatus.IN_DELIVERY) {
-                // 2. 无在途订单却仍是「配送中」的载具：视为任务已结束但未收到回站上报，逐步返站
+                // 2. Vehicles still marked IN_DELIVERY without active order: return to target/home station step by step
                 if (v.getId() != null && !movingVehicleIds.contains(v.getId())) {
-                    if (returnToStation(v, stations.get(v.getStationId()), now)) {
+                    Station targetStation = (v.getTargetStationId() != null && stations.containsKey(v.getTargetStationId()))
+                            ? stations.get(v.getTargetStationId())
+                            : stations.get(v.getStationId());
+                    if (returnToStation(v, targetStation, now)) {
                         returned++;
                     }
                 }
             } else if (v.getStatus() == VehicleStatus.CHARGING) {
-                // 3. 补电：满电后自动转入待命
+                // 3. Recharging: switch to IDLE once battery reaches 100%
                 BigDecimal chargedLevel = v.getBatteryLevel().add(CHARGE_RATE_PER_TICK);
                 if (chargedLevel.compareTo(new BigDecimal("100.00")) >= 0) {
                     v.setBatteryLevel(new BigDecimal("100.00"));
@@ -114,8 +117,8 @@ public class SimulationService {
     }
 
     /**
-     * 让一台脱离任务的载具朝所属站点推进一个 tick。
-     * @return 本次是否已抵达站点并归位（转为待命）
+     * Advances an unassigned vehicle towards its assigned station by one tick.
+     * @return true if vehicle has docked at station and returned to IDLE
      */
     private boolean returnToStation(Vehicle v, Station station, LocalDateTime now) {
         if (station == null) {
@@ -125,7 +128,7 @@ public class SimulationService {
         double sLat = station.getLatitude().doubleValue();
         double sLng = station.getLongitude().doubleValue();
 
-        // 位置未知：直接归位，避免出现「配送中但无坐标」的空窗
+        // Unknown position: park directly to avoid blank coords
         if (v.getCurrentLat() == null || v.getCurrentLng() == null) {
             parkAtStation(v, station, now);
             return true;
@@ -157,8 +160,9 @@ public class SimulationService {
         v.setPositionUpdatedAt(now);
         v.setSpeedUpdatedAt(now);
 
-        // 空载返程能耗：单位能耗率 × 里程
+        // Empty return battery drain: energy rate * distance
         double drained = stepKm * v.getVehicleType().getEnergyRatePercentPerKm().doubleValue();
+
         BigDecimal nextBattery = v.getBatteryLevel().subtract(BigDecimal.valueOf(drained));
         v.setBatteryLevel(nextBattery.signum() < 0 ? BigDecimal.ZERO : nextBattery.setScale(2, RoundingMode.HALF_UP));
 
@@ -169,6 +173,8 @@ public class SimulationService {
     private void parkAtStation(Vehicle v, Station station, LocalDateTime now) {
         v.setCurrentLat(station.getLatitude());
         v.setCurrentLng(station.getLongitude());
+        v.setStationId(station.getId());
+        v.setTargetStationId(null);
         v.setLocationCode(station.getId().intValue());
         v.setCurrentSpeed(BigDecimal.ZERO);
         v.setPositionUpdatedAt(now);
