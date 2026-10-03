@@ -52,3 +52,10 @@ export async function updateOrder(orderId, body) {
     return data;
 }
 
+// GET /api/orders/:orderId/review (Retrieve submitted review)
+export async function getOrderReview(orderId) {
+    if (import.meta.env.VITE_MOCK === '1') return null;
+    const { data } = await http.get(`/orders/${orderId}/review`);
+    return data;
+}
+
