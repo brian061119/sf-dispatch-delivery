@@ -120,8 +120,11 @@ export default function AdminDashboard() {
                 return n ? <Tag color={VEHICLE_STATUS[status].color}>{n}</Tag> : <Text type="secondary">0</Text>;
               },
             })),
-            { title: "Vehicles / capacity", align: "center", render: (_, s) => `${(s.vehicles ?? []).length} / ${s.maxCapacity ?? "—"}` },
+            { title: "Vehicles", align: "center", render: (_, s) => <Text strong>{(s.vehicles ?? []).length}</Text> },
+            // Parking capacity of the station (drone bays + robot bays), not a vehicle count.
+            { title: "Bays (drone / robot)", align: "center", render: (_, s) => <Text type="secondary">{s.maxCapacity ?? "—"} ({s.totalDroneBays ?? "—"} / {s.totalRobotBays ?? "—"})</Text> },
           ]}
+          summary={(stations) => <StationTotals stations={stations} />}
         />
       </Card>
 
@@ -144,6 +147,24 @@ export default function AdminDashboard() {
         />
       </Card>
     </div>
+  );
+}
+
+// Totals row: the per-status sums equal the stat cards at the top of the page.
+// The leading empty cell sits under the table's expand-arrow column.
+function StationTotals({ stations }) {
+  const vehicles = stations.flatMap((s) => s.vehicles ?? []);
+  const bays = stations.reduce((sum, s) => sum + Number(s.maxCapacity ?? 0), 0);
+  return (
+    <Table.Summary.Row>
+      <Table.Summary.Cell index={0} />
+      <Table.Summary.Cell index={1}><Text strong>All stations</Text></Table.Summary.Cell>
+      {["IDLE", "IN_DELIVERY", "CHARGING", "FAULT", "OFFLINE"].map((status, i) => (
+        <Table.Summary.Cell key={status} index={i + 2} align="center"><Text strong>{countBy(vehicles, status)}</Text></Table.Summary.Cell>
+      ))}
+      <Table.Summary.Cell index={7} align="center"><Text strong>{vehicles.length}</Text></Table.Summary.Cell>
+      <Table.Summary.Cell index={8} align="center"><Text type="secondary">{bays}</Text></Table.Summary.Cell>
+    </Table.Summary.Row>
   );
 }
 
