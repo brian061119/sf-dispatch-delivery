@@ -8,7 +8,10 @@ import { useOrders } from "../store/orders";
 import { useWizard } from "../store/wizard";
 
 const { Title, Text } = Typography;
-const isActive = (order) => ["PENDING", "IN_TRANSIT"].includes(order.status);
+// "Active" = anything still moving through the pipeline. PENDING_PAYMENT/PAID/
+// PICKING_UP were missing here before, which made such orders vanish from
+// Active deliveries and (worse) sink to Recent orders.
+const isActive = (order) => ["PENDING", "PAID", "PICKING_UP", "IN_TRANSIT"].includes(order.status);
 const trackingHref = (order) => order.trackingCode ? `/track?code=${encodeURIComponent(order.trackingCode)}` : `/order/${order.orderId}`;
 // Greeting follows the browser's local time (Date always uses the visitor's
 // timezone, so no manual tz detection is needed).
@@ -40,7 +43,10 @@ export default function Dashboard() {
     finally { setAiBusy(false); }
   }
   const activeOrders = list.filter(isActive);
-  const recentOrders = list.filter((order) => !isActive(order)).slice(0, 4);
+  // Recent = the newest orders regardless of status. The previous !isActive
+  // filter left the section empty for anyone whose only order was still
+  // pending, showing "No recent orders" right above a visible active order.
+  const recentOrders = list.slice(0, 4);
   return <div style={page}>
     <Title level={2} style={{ marginBottom: 4 }}>{greeting()}, {username} 👋</Title>
     <Text type="secondary">Manage deliveries, track active orders, and create a new shipment.</Text>

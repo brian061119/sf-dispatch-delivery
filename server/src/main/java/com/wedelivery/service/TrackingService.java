@@ -194,6 +194,7 @@ public class TrackingService {
                 .collect(Collectors.toList());
 
         return TrackingResponse.builder()
+                .orderId(order.getId())
                 .orderNumber(order.getOrderNumber())
                 .orderStatus(order.getStatus())
                 .vehicleType(order.getVehicleType())
@@ -288,6 +289,7 @@ public class TrackingService {
 
     private TrackingResponse buildStaticResponse(Order order, Station station, String vehicleCode) {
         return TrackingResponse.builder()
+                .orderId(order.getId())
                 .orderNumber(order.getOrderNumber())
                 .orderStatus(order.getStatus())
                 .vehicleType(order.getVehicleType())

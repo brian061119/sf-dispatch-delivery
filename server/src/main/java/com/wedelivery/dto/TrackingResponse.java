@@ -17,6 +17,7 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class TrackingResponse {
+    private Long orderId;
     private String orderNumber;
     private OrderStatus orderStatus;
     private VehicleType vehicleType;

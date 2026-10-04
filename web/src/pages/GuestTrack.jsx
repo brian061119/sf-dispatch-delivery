@@ -1,9 +1,10 @@
-import { Alert, Card, Col, Descriptions, Input, Progress, Row, Space, Timeline, Typography } from 'antd';
+import { Alert, Button, Card, Col, Descriptions, Input, Popconfirm, Progress, Row, Space, Timeline, Typography, message } from 'antd';
 import { EnvironmentOutlined, SafetyOutlined, SearchOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { getTrackingByCode } from '../api/tracking';
+import { cancelOrder } from '../api/order';
 import { getStations } from '../api/station';
 import { MapView } from '../components/MapView';
 import { StatusBadge } from '../components/StatusBadge';
@@ -11,6 +12,7 @@ import { StatusTimeline } from '../components/StatusTimeline';
 import { VehicleIcon } from '../components/VehicleIcon';
 import { BRAND_GRADIENT, BRAND_HERO_BG, BRAND_NAME, CARD_SHADOW, FULL_BLEED, HERO_BG_SIZE } from '../lib/brand';
 import { isAuthed } from '../lib/auth';
+import { apiErrorMessage } from '../lib/http';
 // Owner: Yuning Zhang (tracking). Wireframe: wireframes/11_GuestTrack.svg
 // PUBLIC page (no login). This is also the landing page for guests — App.jsx
 // sends every unauthenticated visit to /track.
@@ -57,6 +59,7 @@ export default function GuestTrack() {
     const [stations, setStations] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [cancelBusy, setCancelBusy] = useState(false);
     // Guards against a slow response overwriting a newer lookup, and keeps the
     // polling callback reading the current code without re-creating itself.
     const activeCodeRef = useRef(null);
@@ -119,6 +122,29 @@ export default function GuestTrack() {
         lookup(urlLookupCode);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [urlLookupCode]);
+
+    // Cancel (owner only): the tracking endpoint itself is public, so gate the
+    // button on a login; the cancel API enforces ownership server-side and
+    // returns 403 for anyone who is not the owner.
+    const canCancel = Boolean(
+        tracking
+        && isAuthed()
+        && ['PENDING_PAYMENT', 'PAID', 'PICKING_UP'].includes(tracking.detailStatus ?? tracking.status)
+    );
+    async function doCancel() {
+        setCancelBusy(true);
+        try {
+            // Cancel endpoints look the order up by its SFORD order number,
+            // not the numeric database id (contract-wide "orderId" semantics).
+            await cancelOrder(tracking.orderNumber ?? tracking.orderId);
+            message.success('Order cancelled. Any eligible refund has been processed.');
+            await lookup(activeCodeRef.current, { silent: true });
+        } catch (err) {
+            message.error(apiErrorMessage(err, 'Could not cancel this order.'));
+        } finally {
+            setCancelBusy(false);
+        }
+    }
 
     // The 3 service stations are public data (GET /api/stations, permitAll).
     // StationInfoDto uses latitude/longitude — normalize once for MapView.
@@ -245,8 +271,23 @@ export default function GuestTrack() {
             {tracking && (
                 <Card
                     style={{ borderRadius: 14, boxShadow: CARD_SHADOW }}
-                    title={<Space><span>Order {tracking.orderId}</span><StatusBadge status={tracking.status} /></Space>}
-                    extra={tracking.vehicleType ? (<Space size={6}><VehicleIcon vehicle={tracking.vehicleType} />{tracking.vehicleType}</Space>) : null}
+                    title={<Space><span>Order {tracking.orderNumber ?? tracking.orderId}</span><StatusBadge status={tracking.status} /></Space>}
+                    extra={(
+                        <Space size={10}>
+                            {tracking.vehicleType ? (<Space size={6}><VehicleIcon vehicle={tracking.vehicleType} />{tracking.vehicleType}</Space>) : null}
+                            {canCancel && (
+                                <Popconfirm
+                                    title="Cancel this order?"
+                                    description="Free before the vehicle departs; a $2.50 dispatch fee applies once it is en route to pickup."
+                                    okText="Cancel order"
+                                    okButtonProps={{ danger: true }}
+                                    onConfirm={doCancel}
+                                >
+                                    <Button danger size="small" loading={cancelBusy}>Cancel</Button>
+                                </Popconfirm>
+                            )}
+                        </Space>
+                    )}
                 >
                     <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                         <StatusTimeline status={tracking.status} events={events} currentStage={tracking.currentStage} />

@@ -42,7 +42,12 @@ public class TrackingController {
 
     private Map<String, Object> toContractResponse(TrackingResponse res) {
         Map<String, Object> map = new HashMap<>();
+        // Contract semantics: "orderId" in order endpoints is the SFORD order
+        // number (cancel/update/track all look up by it). Keep that mapping
+        // intact; expose the numeric PK separately as orderDbId.
         map.put("orderId", res.getOrderNumber());
+        map.put("orderNumber", res.getOrderNumber());
+        map.put("orderDbId", res.getOrderId());
         map.put("status", res.getOrderStatus().name());
         map.put("vehicleType", res.getVehicleType().name());
         map.put("vehicleCode", res.getVehicleCode());
