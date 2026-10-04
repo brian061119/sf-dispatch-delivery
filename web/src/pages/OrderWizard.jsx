@@ -266,9 +266,12 @@ function AddressField({ label, color, value, error, onChange, onFocus }) {
 
 function PackageStep({ onBack, onNext, busy, initial }) {
   const [form] = Form.useForm();
+  const isVip = getRole() === "VIP";
+  const robotMax = isVip ? 16.5 : ROBOT_MAX_KG;
+  const droneMax = isVip ? 3.3 : DRONE_MAX_KG;
   const [weight, setWeight] = useState(initial.pkg?.weightKg ?? null);
-  const tooHeavy = weight != null && weight > ROBOT_MAX_KG;
-  const robotOnly = weight != null && weight > DRONE_MAX_KG && !tooHeavy;
+  const tooHeavy = weight != null && weight > robotMax;
+  const robotOnly = weight != null && weight > droneMax && !tooHeavy;
 
   return (
     <Card style={{ ...cardStyle, maxWidth: 620, margin: "auto" }}>
@@ -286,12 +289,12 @@ function PackageStep({ onBack, onNext, busy, initial }) {
         onValuesChange={(changed) => { if (changed.weightKg !== undefined) setWeight(changed.weightKg); }}
       >
         <Form.Item name="description" label="Item name" rules={[{ required: true, message: "Enter an item name" }, { max: 60, message: "Keep it under 60 characters" }]}><Input placeholder="e.g. Textbooks" /></Form.Item>
-        <Form.Item name="weightKg" label="Weight (kg)" rules={[{ required: true, message: "Enter the weight" }]}>
+        <Form.Item name="weightKg" label={`Weight (kg) — up to ${robotMax} kg`} rules={[{ required: true, message: "Enter the weight" }]}>
           <InputNumber min={0.1} max={999} precision={1} style={{ width: "100%" }} placeholder="e.g. 2.5" />
         </Form.Item>
-        {tooHeavy && <Alert type="error" showIcon style={{ marginBottom: 16 }} message={`No vehicle can carry more than ${ROBOT_MAX_KG} kg.`} description="Split this into multiple deliveries, or contact support for freight." />}
-        {robotOnly && <Alert type="warning" showIcon style={{ marginBottom: 16 }} message={`Over ${DRONE_MAX_KG} kg — only robots can carry this. Drones will be unavailable.`} />}
-        {!tooHeavy && !robotOnly && <Alert type="info" showIcon style={{ marginBottom: 16 }} message={`Robot limit: ${ROBOT_MAX_KG} kg · Drone limit: ${DRONE_MAX_KG} kg`} />}
+        {tooHeavy && <Alert type="error" showIcon style={{ marginBottom: 16 }} message={`No vehicle can carry more than ${robotMax} kg.`} description="Split this into multiple deliveries, or contact support for freight." />}
+        {robotOnly && <Alert type="warning" showIcon style={{ marginBottom: 16 }} message={`Over ${droneMax} kg — only robots can carry this. Drones will be unavailable.`} />}
+        {!tooHeavy && !robotOnly && <Alert type="info" showIcon style={{ marginBottom: 16 }} message={`Robot limit: ${robotMax} kg · Drone limit: ${droneMax} kg ${isVip ? "(VIP +10% capacity applied 👑)" : ""}`} />}
         <Row gutter={12}>
           <Col span={8}><Form.Item name="lengthCm" label="Length (cm)"><InputNumber min={1} max={500} style={{ width: "100%" }} /></Form.Item></Col>
           <Col span={8}><Form.Item name="widthCm" label="Width (cm)"><InputNumber min={1} max={500} style={{ width: "100%" }} /></Form.Item></Col>

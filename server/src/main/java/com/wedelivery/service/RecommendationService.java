@@ -85,7 +85,7 @@ public class RecommendationService {
     }
 
     public QuoteResponse generateRecommendations(QuoteRequest request, User currentUser) {
-        boolean isVip = currentUser != null && currentUser.getRole() == Role.VIP;
+        boolean isVip = currentUser != null && currentUser.isVip();
         List<Station> stations = stationRepository.findAll();
         List<PlanOptionDto> options = new ArrayList<>();
 

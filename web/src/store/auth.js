@@ -21,6 +21,10 @@ export const useAuth = create((set) => ({
         setAuth(res.token, res.user.username, role);
         set({ token: res.token, username: res.user.username, role });
     },
+    setRole(newRole) {
+        setAuth(getToken(), getUsername(), newRole);
+        set({ role: newRole });
+    },
     async logout() {
         try {
             await authApi.logout(); // best-effort (contract TBD: server-side invalidation?)

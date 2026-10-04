@@ -11,6 +11,7 @@ import OrderDetail from "./pages/OrderDetail";
 import OrderHistory from "./pages/OrderHistory";
 import OrderWizard from "./pages/OrderWizard";
 import Register from "./pages/Register";
+import VipMembership from "./pages/VipMembership";
 function RequireAuth({ children }) {
   // social-ai style: the frontend trusts token PRESENCE (any string counts) —
   // the backend is the one that validates it on real API calls.
@@ -67,6 +68,14 @@ export default function App() {
             element={
               <RequireAuth>
                 <OrderDetail />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/vip"
+            element={
+              <RequireAuth>
+                <VipMembership />
               </RequireAuth>
             }
           />

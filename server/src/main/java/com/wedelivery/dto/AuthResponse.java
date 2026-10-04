@@ -35,5 +35,7 @@ public class AuthResponse {
         private String username;
         private String email;
         private String role;
+        private Boolean isVip;
+        private LocalDateTime vipExpireAt;
     }
 }

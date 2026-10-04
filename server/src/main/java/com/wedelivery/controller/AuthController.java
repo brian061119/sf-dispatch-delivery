@@ -33,12 +33,14 @@ public class AuthController {
         if (user == null) {
             return ResponseEntity.status(401).build();
         }
-        // 返回与登录响应中 user 相同的结构，不暴露 passwordHash 等敏感字段
+        // Return user info including VIP status and expiration
         return ResponseEntity.ok(AuthResponse.UserDto.builder()
                 .id(String.valueOf(user.getId()))
                 .username(user.getUsername())
                 .email(user.getEmail())
                 .role(user.getRole().name())
+                .isVip(user.isVip())
+                .vipExpireAt(user.getVipExpireAt())
                 .build());
     }
 }
