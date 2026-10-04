@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Alert, Button, Card, Col, Descriptions, Form, Input, InputNumber, Modal, Popconfirm, Radio, Rate, Row, Spin, Switch, Tag, Tooltip, Typography } from "antd";
-import { EditOutlined } from "@ant-design/icons";
+import { EditOutlined, ThunderboltOutlined, CarOutlined } from "@ant-design/icons";
 import { Link, useParams } from "react-router-dom";
 import { cancelOrder, confirmReceipt, getOrder, getOrderReview, submitReview, updateOrder } from "../api/order";
+import { getRecommendations } from "../api/recommendation";
 import { normalizeStatus } from "../api/tracking";
-import { geocode } from "../lib/geocode";
+import { geocode, isWithinSanFrancisco } from "../lib/geocode";
 import { StatusBadge } from "../components/StatusBadge";
 
 const { Title, Text } = Typography;
@@ -43,6 +44,13 @@ export default function OrderDetail() {
   const [editBusy, setEditBusy] = useState(false);
   const [editForm] = Form.useForm();
 
+  // Price estimate preview states
+  const [pricingLoading, setPricingLoading] = useState(false);
+  const [estimatedNewPrice, setEstimatedNewPrice] = useState(null);
+  const [pricingNotice, setPricingNotice] = useState("");
+  const [calcVolumeM3, setCalcVolumeM3] = useState(0.003);
+  const debounceTimerRef = useRef(null);
+
   // Existing review state
   const [existingReview, setExistingReview] = useState(null);
 
@@ -70,7 +78,6 @@ export default function OrderDetail() {
       const rev = await getOrderReview(id);
       if (rev) setExistingReview(rev);
     } catch {
-      // Review may not exist yet, which is expected
       setExistingReview(null);
     }
   }
@@ -132,8 +139,86 @@ export default function OrderDetail() {
     }
   }
 
+  // Real-time price and carrier availability calculation
+  function updatePriceEstimate(currentVals) {
+    if (!currentVals) return;
+    const pType = currentVals.vehicleType || "ROBOT";
+    const weight = Number(currentVals.packageWeight || 1.5);
+    const pAddr = currentVals.pickupAddress || order?.pickup?.line1 || "";
+    const dAddr = currentVals.dropoffAddress || order?.dropoff?.line1 || "";
+    const L = Number(currentVals.packageLengthCm || 20);
+    const W = Number(currentVals.packageWidthCm || 15);
+    const H = Number(currentVals.packageHeightCm || 10);
+    const vol = (L * W * H) / 1000000;
+    setCalcVolumeM3(vol);
+
+    // Immediate physical validation
+    if (pType === "DRONE" && weight > 3.0) {
+      setPricingNotice("⚠️ Package weight exceeds Drone Express limit of 3.0 kg. Please select Ground Robot or reduce weight.");
+      setEstimatedNewPrice(null);
+      return;
+    }
+    if (pType === "DRONE" && vol > 0.05) {
+      setPricingNotice("⚠️ Package volume exceeds Drone cargo bay limit of 0.05 m³.");
+      setEstimatedNewPrice(null);
+      return;
+    }
+    if (pType === "ROBOT" && weight > 15.0) {
+      setPricingNotice("⚠️ Package weight exceeds Ground Robot limit of 15.0 kg.");
+      setEstimatedNewPrice(null);
+      return;
+    }
+    if (pType === "ROBOT" && vol > 0.30) {
+      setPricingNotice("⚠️ Package volume exceeds Ground Robot cargo bay limit of 0.30 m³.");
+      setEstimatedNewPrice(null);
+      return;
+    }
+
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(async () => {
+      setPricingLoading(true);
+      setPricingNotice("");
+      try {
+        const pLat = order?.pickup?.lat || 37.789172;
+        const pLng = order?.pickup?.lng || -122.397042;
+        const dLat = order?.dropoff?.lat || 37.759600;
+        const dLng = order?.dropoff?.lng || -122.426900;
+
+        const reqBody = {
+          pickup: { line1: pAddr, lat: pLat, lng: pLng },
+          dropoff: { line1: dAddr, lat: dLat, lng: dLng },
+          package: {
+            weightKg: weight,
+            lengthCm: L,
+            widthCm: W,
+            heightCm: H
+          }
+        };
+
+        const res = await getRecommendations(reqBody);
+        const candidates = res?.candidates || [];
+        const match = candidates.find(c => c.vehicleType === pType);
+        if (match) {
+          setEstimatedNewPrice(Number(match.estimatedCost));
+          setPricingNotice("");
+        } else {
+          setEstimatedNewPrice(null);
+          if (pType === "DRONE") {
+            setPricingNotice("⚠️ Drone Express is unavailable for these parameters (no idle drones with ≥10% reserve battery).");
+          } else {
+            setPricingNotice("⚠️ Ground Robot is currently unavailable for these parameters.");
+          }
+        }
+      } catch {
+        setEstimatedNewPrice(null);
+      } finally {
+        setPricingLoading(false);
+      }
+    }, 400);
+  }
+
   function openEditModal() {
-    editForm.setFieldsValue({
+    const initialVals = {
       vehicleType: order?.vehicleType || "ROBOT",
       pickupAddress: order?.pickup?.line1 || order?.pickupAddress || "",
       dropoffAddress: order?.dropoff?.line1 || order?.dropoffAddress || "",
@@ -142,42 +227,66 @@ export default function OrderDetail() {
       packageLengthCm: 20,
       packageWidthCm: 15,
       packageHeightCm: 10,
-    });
+    };
+    editForm.setFieldsValue(initialVals);
+    setEstimatedNewPrice(Number(order?.estimatedCost ?? 0));
+    setPricingNotice("");
+    setCalcVolumeM3((20 * 15 * 10) / 1000000);
     setEditModalVisible(true);
+    updatePriceEstimate(initialVals);
   }
 
   async function handleEditOrder(values) {
     setEditBusy(true);
     setError("");
     try {
+      // 1. Validate physical weight and volume
+      const weight = Number(values.packageWeight);
+      const L = Number(values.packageLengthCm || 20);
+      const W = Number(values.packageWidthCm || 15);
+      const H = Number(values.packageHeightCm || 10);
+      const vol = (L * W * H) / 1000000;
+
+      if (values.vehicleType === "DRONE") {
+        if (weight > 3.0) {
+          throw new Error("Package weight (" + weight + " kg) exceeds drone maximum capacity of 3.0 kg.");
+        }
+        if (vol > 0.05) {
+          throw new Error("Package volume (" + vol.toFixed(4) + " m³) exceeds drone cargo bay limit of 0.05 m³.");
+        }
+      } else if (values.vehicleType === "ROBOT") {
+        if (weight > 15.0) {
+          throw new Error("Package weight (" + weight + " kg) exceeds robot maximum capacity of 15.0 kg.");
+        }
+        if (vol > 0.30) {
+          throw new Error("Package volume (" + vol.toFixed(4) + " m³) exceeds robot cargo bay limit of 0.30 m³.");
+        }
+      }
+
+      // 2. Validate Origin / Pickup Address in San Francisco
       let pLat = order?.pickup?.lat || order?.pickupLat;
       let pLng = order?.pickup?.lng || order?.pickupLng;
       const currentPickup = order?.pickup?.line1 || order?.pickupAddress || "";
       if (values.pickupAddress && values.pickupAddress.trim() !== currentPickup.trim()) {
-        try {
-          const geo = await geocode({ street: values.pickupAddress.trim() });
-          if (geo?.lat && geo?.lng) {
-            pLat = geo.lat;
-            pLng = geo.lng;
-          }
-        } catch {
-          // fallback to existing coordinates
+        const geo = await geocode({ street: values.pickupAddress.trim() });
+        if (!geo || !isWithinSanFrancisco(geo.lat, geo.lng)) {
+          throw new Error("Pickup address must be a valid street location within the San Francisco service area.");
         }
+        pLat = geo.lat;
+        pLng = geo.lng;
       }
 
+      // 3. Validate Destination Address in San Francisco
       let dLat = order?.dropoff?.lat || order?.dropoffLat;
       let dLng = order?.dropoff?.lng || order?.dropoffLng;
       const currentDropoff = order?.dropoff?.line1 || order?.dropoffAddress || "";
       if (values.dropoffAddress && values.dropoffAddress.trim() !== currentDropoff.trim()) {
-        try {
-          const geo = await geocode({ street: values.dropoffAddress.trim() });
-          if (geo?.lat && geo?.lng) {
-            dLat = geo.lat;
-            dLng = geo.lng;
-          }
-        } catch {
-          // fallback to existing coordinates
+        const geo = await geocode({ street: values.dropoffAddress.trim() });
+        if (!geo || !isWithinSanFrancisco(geo.lat, geo.lng)) {
+          throw new Error("Destination address must be a valid street location within the San Francisco service area.");
         }
+        dLat = geo.lat;
+        dLng = geo.lng;
       }
 
       const payload = {
@@ -190,18 +299,18 @@ export default function OrderDetail() {
         dropoffLat: dLat,
         dropoffLng: dLng,
         packageDescription: values.packageDescription?.trim(),
-        packageWeight: values.packageWeight ? Number(values.packageWeight) : undefined,
-        packageLengthCm: values.packageLengthCm ? Number(values.packageLengthCm) : undefined,
-        packageWidthCm: values.packageWidthCm ? Number(values.packageWidthCm) : undefined,
-        packageHeightCm: values.packageHeightCm ? Number(values.packageHeightCm) : undefined,
+        packageWeight: weight,
+        packageLengthCm: L,
+        packageWidthCm: W,
+        packageHeightCm: H,
       };
 
       const updated = await updateOrder(orderId, payload);
       setOrder(toView(updated));
-      setMessage("Order details updated successfully! Carrier route, vehicle assignment, and price adjustments have been settled.");
+      setMessage("Order details modified successfully! Carrier route and price adjustments have been settled.");
       setEditModalVisible(false);
     } catch (err) {
-      setError(err?.response?.data?.message || "Could not update order.");
+      setError(err?.response?.data?.message || err?.message || "Could not update order.");
     } finally {
       setEditBusy(false);
     }
@@ -215,6 +324,8 @@ export default function OrderDetail() {
   const isRobot = (order.vehicleType === "ROBOT" || candidate.vehicleType === "ROBOT");
   const canModify = !order.hasBeenModified && (status === "PENDING" || status === "PAID");
   const canShowUpgrade = isRobot && canModify;
+  const currentCost = Number(order.estimatedCost ?? 0);
+  const priceDiff = estimatedNewPrice != null ? (estimatedNewPrice - currentCost) : 0;
 
   return (
     <div style={{ padding: "28px 0 50px" }}>
@@ -424,13 +535,13 @@ export default function OrderDetail() {
         </Col>
       </Row>
 
-      {/* Modify Order Modal */}
+      {/* Modify Order Modal with Full Verification & Surcharge Reminder */}
       <Modal
         title="Modify Order Details"
         open={editModalVisible}
         onCancel={() => setEditModalVisible(false)}
         footer={null}
-        width={580}
+        width={600}
         destroyOnClose
       >
         <Alert
@@ -438,11 +549,13 @@ export default function OrderDetail() {
           showIcon
           message="Single Modification Policy"
           description="Orders can only be modified once before pickup begins. Modifying delivery method, addresses, or package dimensions will re-calculate routes and delivery fees."
-          style={{ marginBottom: 18 }}
+          style={{ marginBottom: 16 }}
         />
+
         <Form
           form={editForm}
           layout="vertical"
+          onValuesChange={(_, all) => updatePriceEstimate(all)}
           onFinish={handleEditOrder}
         >
           {/* 1. Delivery Method */}
@@ -453,10 +566,10 @@ export default function OrderDetail() {
           >
             <Radio.Group buttonStyle="solid" style={{ width: "100%", display: "flex", gap: 10 }}>
               <Radio.Button value="ROBOT" style={{ flex: 1, textAlign: "center", height: 42, lineHeight: "40px" }}>
-                🤖 Ground Robot (Max 15kg)
+                <CarOutlined style={{ marginRight: 6 }} /> Ground Robot (Max 15kg, 0.30m³)
               </Radio.Button>
               <Radio.Button value="DRONE" style={{ flex: 1, textAlign: "center", height: 42, lineHeight: "40px" }}>
-                ⚡ Drone Express (Max 3kg)
+                <ThunderboltOutlined style={{ marginRight: 6 }} /> Drone Express (Max 3kg, 0.05m³)
               </Radio.Button>
             </Radio.Group>
           </Form.Item>
@@ -466,7 +579,7 @@ export default function OrderDetail() {
             <Col span={24}>
               <Form.Item
                 name="pickupAddress"
-                label={<Text strong>🟢 Pickup Address</Text>}
+                label={<Text strong>🟢 Pickup Address (San Francisco)</Text>}
                 rules={[{ required: true, message: "Please enter pickup address" }]}
               >
                 <Input placeholder="Enter pickup address in San Francisco" />
@@ -475,7 +588,7 @@ export default function OrderDetail() {
             <Col span={24}>
               <Form.Item
                 name="dropoffAddress"
-                label={<Text strong>🔴 Destination Address</Text>}
+                label={<Text strong>🔴 Destination Address (San Francisco)</Text>}
                 rules={[{ required: true, message: "Please enter destination address" }]}
               >
                 <Input placeholder="Enter destination address in San Francisco" />
@@ -519,11 +632,83 @@ export default function OrderDetail() {
             </Col>
           </Row>
 
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
+          {/* Live volume & capacity badge */}
+          <div style={{ marginBottom: 16 }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              📦 Calculated Volume: <strong>{calcVolumeM3.toFixed(4)} m³</strong>
+            </Text>
+          </div>
+
+          {/* Real-time Pricing Preview & Surcharge Reminder */}
+          <div style={{ background: "#f8f9fa", border: "1px solid #e9ecef", borderRadius: 8, padding: "12px 16px", marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <Text type="secondary">Current Order Cost:</Text>
+              <Text strong>${currentCost.toFixed(2)}</Text>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <Text type="secondary">Estimated New Total:</Text>
+              <Text strong style={{ fontSize: 16 }}>
+                {pricingLoading ? <Spin size="small" /> : estimatedNewPrice != null ? `$${estimatedNewPrice.toFixed(2)}` : "—"}
+              </Text>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTop: "1px dashed #d9d9d9" }}>
+              <Text strong>Price Adjustment:</Text>
+              {pricingLoading ? (
+                <Text type="secondary">Recalculating...</Text>
+              ) : estimatedNewPrice != null ? (
+                priceDiff > 0 ? (
+                  <Tag color="orange" style={{ fontSize: 13, padding: "2px 8px" }}>
+                    ⚠️ Additional Surcharge: +${priceDiff.toFixed(2)}
+                  </Tag>
+                ) : priceDiff < 0 ? (
+                  <Tag color="green" style={{ fontSize: 13, padding: "2px 8px" }}>
+                    ✓ Partial Refund: -${Math.abs(priceDiff).toFixed(2)}
+                  </Tag>
+                ) : (
+                  <Tag color="default" style={{ fontSize: 13, padding: "2px 8px" }}>
+                    No Price Change ($0.00)
+                  </Tag>
+                )
+              ) : (
+                <Tag color="red">Unable to quote</Tag>
+              )}
+            </div>
+          </div>
+
+          {/* Validation Notice or Alert */}
+          {pricingNotice && (
+            <Alert
+              type="warning"
+              showIcon
+              message={pricingNotice}
+              style={{ marginBottom: 16 }}
+            />
+          )}
+
+          {/* Action buttons */}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 12 }}>
             <Button onClick={() => setEditModalVisible(false)}>Cancel</Button>
-            <Button type="primary" htmlType="submit" loading={editBusy}>
-              Confirm Modification
-            </Button>
+            <Popconfirm
+              title="Confirm Order Modification?"
+              description={
+                priceDiff > 0
+                  ? `An additional surcharge of $${priceDiff.toFixed(2)} will be charged to your card. Confirm?`
+                  : priceDiff < 0
+                  ? `A partial refund of $${Math.abs(priceDiff).toFixed(2)} will be returned. Confirm?`
+                  : "Confirm modification with no price change?"
+              }
+              onConfirm={() => editForm.submit()}
+              okText="Confirm & Pay"
+              disabled={pricingLoading || !!pricingNotice || (estimatedNewPrice == null)}
+            >
+              <Button
+                type="primary"
+                loading={editBusy}
+                disabled={pricingLoading || !!pricingNotice || (estimatedNewPrice == null)}
+              >
+                {priceDiff > 0 ? `Confirm (+$${priceDiff.toFixed(2)})` : priceDiff < 0 ? `Confirm (-$${Math.abs(priceDiff).toFixed(2)})` : "Confirm Modification"}
+              </Button>
+            </Popconfirm>
           </div>
         </Form>
       </Modal>

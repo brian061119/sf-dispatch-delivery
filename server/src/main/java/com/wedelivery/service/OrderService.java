@@ -556,8 +556,12 @@ public class OrderService {
         String dAddress = request.getDropoffAddress() != null && !request.getDropoffAddress().isBlank()
                 ? request.getDropoffAddress().trim() : order.getDropoffAddress();
 
-        if (!RecommendationService.isWithinSanFrancisco(pLat, pLng) || !RecommendationService.isWithinSanFrancisco(dLat, dLng)) {
-            throw new IllegalArgumentException("Delivery address must be within the San Francisco service area.");
+        // Validate pickup and destination locations within San Francisco service area
+        if (!RecommendationService.isWithinSanFrancisco(pLat, pLng)) {
+            throw new IllegalArgumentException("Pickup address is outside the San Francisco service area.");
+        }
+        if (!RecommendationService.isWithinSanFrancisco(dLat, dLng)) {
+            throw new IllegalArgumentException("Destination address is outside the San Francisco service area.");
         }
 
         BigDecimal weight = request.getPackageWeight() != null ? request.getPackageWeight() : order.getPackageWeight();
@@ -567,6 +571,23 @@ public class OrderService {
             double w = request.getPackageWidthCm().doubleValue() / 100.0;
             double h = request.getPackageHeightCm().doubleValue() / 100.0;
             volume = BigDecimal.valueOf(l * w * h).setScale(4, RoundingMode.HALF_UP);
+        }
+
+        // Validate package weight and volume physical limits according to target vehicle carrier type
+        if (targetVehicleType == VehicleType.DRONE) {
+            if (weight != null && weight.compareTo(new BigDecimal("3.00")) > 0) {
+                throw new IllegalArgumentException("Package weight (" + weight + " kg) exceeds drone maximum capacity of 3.0 kg.");
+            }
+            if (volume != null && volume.compareTo(new BigDecimal("0.05")) > 0) {
+                throw new IllegalArgumentException("Package volume (" + volume + " m³) exceeds drone cargo bay limit of 0.05 m³.");
+            }
+        } else if (targetVehicleType == VehicleType.ROBOT) {
+            if (weight != null && weight.compareTo(new BigDecimal("15.00")) > 0) {
+                throw new IllegalArgumentException("Package weight (" + weight + " kg) exceeds robot maximum capacity of 15.0 kg.");
+            }
+            if (volume != null && volume.compareTo(new BigDecimal("0.30")) > 0) {
+                throw new IllegalArgumentException("Package volume (" + volume + " m³) exceeds robot cargo bay limit of 0.30 m³.");
+            }
         }
 
         // 3. Invoke RecommendationService to re-evaluate route and pricing
