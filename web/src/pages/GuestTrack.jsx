@@ -183,6 +183,10 @@ export default function GuestTrack() {
     if (!usesRoadGeometry && vehicleNow && (routePoints.length === 0 || vehicleNow.lat !== routePoints[routePoints.length - 1].lat || vehicleNow.lng !== routePoints[routePoints.length - 1].lng)) {
         routePoints.push(vehicleNow);
     }
+    // A cancelled order has no route worth drawing: the vehicle was released
+    // and the plan is dead. Showing markers (pickup/destination/stations) is
+    // honest; a stray line stitched from leftover event coordinates is not.
+    const showRoute = tracking?.status !== 'CANCELLED' && routePoints.length > 1;
     const progress = deliveryProgress(tracking?.progressPercent);
     const authed = isAuthed();
 
@@ -314,7 +318,7 @@ export default function GuestTrack() {
                                 pickup={pickupPoint}
                                 destination={destinationPoint}
                                 stations={stations}
-                                route={routePoints.length > 1 ? routePoints : undefined}
+                                route={showRoute ? routePoints : undefined}
                                 vehicle={vehicleNow ? { ...vehicleNow, type: tracking.vehicleType, code: tracking.vehicleCode } : undefined}
                                 height={360}
                             />

@@ -288,6 +288,33 @@ public class TrackingService {
     }
 
     private TrackingResponse buildStaticResponse(Order order, Station station, String vehicleCode) {
+        // 替代「一切归零、只给站点坐标」的旧静态响应：取消/未支付订单依然应该
+        // 能在地图上看到这单"从哪到哪"（起终点 marker），并且能看到真实的事件
+        // 历史（尤其是 cancelOrder 落库的 CANCELLED 事件，含手续费与退款金额）。
+        boolean cancelled = order.getStatus() == OrderStatus.CANCELLED;
+        boolean stationPickup = Boolean.TRUE.equals(order.getIsStationPickup());
+        BigDecimal pLat = stationPickup ? station.getLatitude() : order.getPickupLat();
+        BigDecimal pLng = stationPickup ? station.getLongitude() : order.getPickupLng();
+
+        List<TrackingEvent> events = trackingEventRepository.findByOrderIdOrderByEventTimeAsc(order.getId());
+        List<TrackingResponse.TrackingEventDto> eventDtos = events.stream()
+                .map(e -> TrackingResponse.TrackingEventDto.builder()
+                        .stage(e.getStage())
+                        .statusDescription(e.getStatusDescription())
+                        .eventLat(e.getEventLat())
+                        .eventLng(e.getEventLng())
+                        .eventTime(e.getEventTime())
+                        .build())
+                .collect(Collectors.toList());
+
+        // 未支付订单的 ETA 用下单时约定的 estimatedDeliveryTime 换算成剩余分钟；
+        // 取消订单没有 ETA（Controller 对 CANCELLED 不输出 estimatedArrival）。
+        int etaMinutesRemaining = 0;
+        if (!cancelled && order.getEstimatedDeliveryTime() != null) {
+            etaMinutesRemaining = (int) Math.max(0, Duration.between(
+                    LocalDateTime.now(), order.getEstimatedDeliveryTime()).toMinutes());
+        }
+
         return TrackingResponse.builder()
                 .orderId(order.getId())
                 .orderNumber(order.getOrderNumber())
@@ -295,12 +322,20 @@ public class TrackingService {
                 .vehicleType(order.getVehicleType())
                 .vehicleCode(vehicleCode)
                 .currentStage(TrackingStage.TO_PICKUP)
-                .currentStageDescription("Order not paid yet or has been cancelled")
-                .currentLat(station.getLatitude())
-                .currentLng(station.getLongitude())
+                .currentStageDescription(cancelled
+                        ? "This order has been cancelled"
+                        : "Waiting for payment — the vehicle is on standby at its station")
+                // CANCELLED 不再返回位置：车辆已被释放/改派，任何坐标都是
+                // 伪装的"车在这里"；未支付时车辆确实停在站点，返回站点坐标。
+                .currentLat(cancelled ? null : station.getLatitude())
+                .currentLng(cancelled ? null : station.getLongitude())
+                .pickupLat(pLat)
+                .pickupLng(pLng)
+                .destinationLat(order.getDropoffLat())
+                .destinationLng(order.getDropoffLng())
                 .progressPercent(BigDecimal.ZERO)
-                .etaMinutesRemaining(0)
-                .events(List.of())
+                .etaMinutesRemaining(etaMinutesRemaining)
+                .events(eventDtos)
                 .build();
     }
 }

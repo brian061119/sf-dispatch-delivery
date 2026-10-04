@@ -2,6 +2,7 @@ package com.wedelivery.controller;
 
 import com.wedelivery.dto.TrackingResponse;
 import com.wedelivery.entity.User;
+import com.wedelivery.entity.enums.OrderStatus;
 import com.wedelivery.service.OrderService;
 import com.wedelivery.service.TrackingService;
 import lombok.RequiredArgsConstructor;
@@ -59,7 +60,11 @@ public class TrackingController {
         map.put("destinationLat", res.getDestinationLat());
         map.put("destinationLng", res.getDestinationLng());
         map.put("routePolyline", res.getRoutePolyline());
-        map.put("estimatedArrival", LocalDateTime.now().plusMinutes(res.getEtaMinutesRemaining()).format(DateTimeFormatter.ISO_DATE_TIME));
+        // 已取消的订单没有"预计送达"——now + 0 分钟会显示成一个假 ETA（恰好
+        // 等于查询时刻），对用户是误导；输出 null，前端显示为 "—"。
+        map.put("estimatedArrival", res.getOrderStatus() == OrderStatus.CANCELLED
+                ? null
+                : LocalDateTime.now().plusMinutes(res.getEtaMinutesRemaining()).format(DateTimeFormatter.ISO_DATE_TIME));
         // Attach detailed progress fields
         map.put("progressPercent", res.getProgressPercent());
         map.put("currentStageDescription", res.getCurrentStageDescription());

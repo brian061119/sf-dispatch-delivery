@@ -27,6 +27,9 @@ export function StatusTimeline({ status, events = [], currentStage }) {
     const confirmed = byStage.TO_PICKUP;
     const pickedUp = byStage.TO_DROPOFF;
     const delivered = byStage.RETURNING;
+    // CANCELLED is recorded by OrderService.cancelOrder with the fee/refund
+    // breakdown in its description — surface it as the final timeline step.
+    const cancelledEvt = byStage.CANCELLED;
 
     const items = [
         {
@@ -60,6 +63,23 @@ export function StatusTimeline({ status, events = [], currentStage }) {
     if (status === 'DELIVERED' || currentStage === 'RETURNING' || currentStage === 'COMPLETED') current = 3;
     else if (currentStage === 'TO_DROPOFF' || status === 'IN_TRANSIT') current = 2;
     else if (pickedUp) current = 2;
+
+    // A cancelled order's last word is the cancellation itself: point the
+    // (error-styled) current step at the Cancelled entry, not at Confirmed.
+    if (cancelledEvt) {
+        items.push({
+            title: 'Cancelled 已取消',
+            description: (
+                <span>
+                    {fmtTime(cancelledEvt.eventTime)}
+                    {cancelledEvt.statusDescription && (
+                        <Typography.Text type="secondary" style={{ display: 'block', fontSize: 12 }}>{cancelledEvt.statusDescription}</Typography.Text>
+                    )}
+                </span>
+            ),
+        });
+        current = items.length - 1;
+    }
 
     return (
         <Steps
