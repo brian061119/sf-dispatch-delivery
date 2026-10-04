@@ -32,6 +32,11 @@ public class TrackingResponse {
     private BigDecimal pickupLng;
     private BigDecimal destinationLat;
     private BigDecimal destinationLng;
+    // Road-network geometry of the full trip: [station -> pickup -> dropoff -> station].
+    // Each entry is {lat, lng}. When a routing provider with real map data (OSRM) is
+    // active this follows streets; with the straight-line provider it is just the
+    // corner points, and the front end falls back to drawing milestone segments.
+    private List<double[]> routePolyline;
     private BigDecimal progressPercent; // 0.0 ~ 100.0
     private Integer etaMinutesRemaining;
     private List<TrackingEventDto> events;

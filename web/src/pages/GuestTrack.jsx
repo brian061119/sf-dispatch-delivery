@@ -134,14 +134,27 @@ export default function GuestTrack() {
     const toPoint = (lat, lng) => (Number.isFinite(Number(lat)) && Number.isFinite(Number(lng)) ? { lat: Number(lat), lng: Number(lng) } : null);
     const pickupPoint = toPoint(tracking?.pickupLat, tracking?.pickupLng);
     const destinationPoint = toPoint(tracking?.destinationLat, tracking?.destinationLng);
-    // Planned route as a polyline: the milestone events are recorded at fixed
-    // boundary points (station → pickup → destination), so their coordinate
-    // sequence IS the route skeleton; the live vehicle position trails last.
-    const routePoints = events
-        .map((e) => toPoint(e.eventLat, e.eventLng))
-        .filter(Boolean)
-        .filter((p, i, arr) => i === 0 || p.lat !== arr[i - 1].lat || p.lng !== arr[i - 1].lng);
-    if (vehicleNow && (routePoints.length === 0 || vehicleNow.lat !== routePoints[routePoints.length - 1].lat || vehicleNow.lng !== routePoints[routePoints.length - 1].lng)) {
+    // Planned route as a polyline. Preferred source is `routePolyline`: the real
+    // road-network geometry (station → pickup → dropoff → station) returned by the
+    // routing provider, so the line follows streets instead of cutting through
+    // buildings. When it is absent (offline/straight-line provider, or an order
+    // that has not started) we fall back to the milestone coordinates, which at
+    // least give the route skeleton.
+    const roadGeometry = Array.isArray(tracking?.routePolyline)
+        ? tracking.routePolyline
+            .map((pair) => (Array.isArray(pair) ? toPoint(pair[0], pair[1]) : null))
+            .filter(Boolean)
+        : [];
+    const usesRoadGeometry = roadGeometry.length > 1;
+    const routePoints = usesRoadGeometry
+        ? roadGeometry
+        : events
+            .map((e) => toPoint(e.eventLat, e.eventLng))
+            .filter(Boolean)
+            .filter((p, i, arr) => i === 0 || p.lat !== arr[i - 1].lat || p.lng !== arr[i - 1].lng);
+    // With real road geometry the live position already lies on the drawn line
+    // (and has its own marker), so only the skeleton needs it appended.
+    if (!usesRoadGeometry && vehicleNow && (routePoints.length === 0 || vehicleNow.lat !== routePoints[routePoints.length - 1].lat || vehicleNow.lng !== routePoints[routePoints.length - 1].lng)) {
         routePoints.push(vehicleNow);
     }
     const progress = deliveryProgress(tracking?.progressPercent);

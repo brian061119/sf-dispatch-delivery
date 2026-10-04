@@ -9,6 +9,7 @@ import com.wedelivery.exception.ResourceNotFoundException;
 import com.wedelivery.entity.enums.OrderStatus;
 import com.wedelivery.entity.enums.TrackingStage;
 import com.wedelivery.entity.enums.VehicleStatus;
+import com.wedelivery.entity.enums.VehicleType;
 import com.wedelivery.repository.OrderRepository;
 import com.wedelivery.repository.StationRepository;
 import com.wedelivery.repository.TrackingEventRepository;
@@ -23,6 +24,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -36,6 +38,7 @@ public class TrackingService {
     private final StationRepository stationRepository;
     private final VehicleRepository vehicleRepository;
     private final TrackingEventRepository trackingEventRepository;
+    private final RouteService routeService;
 
     @Transactional
     public TrackingResponse trackOrder(String orderNumber) {
@@ -85,6 +88,16 @@ public class TrackingService {
         BigDecimal dLat = order.getDropoffLat();
         BigDecimal dLng = order.getDropoffLng();
 
+        // 三段航程的沿道路几何折线（接入 OSRM 后机器人沿街道行驶，不再直线穿楼；
+        // 无人机按 VehicleType 走直线，离线/失败时自动退化为两点直线）。
+        VehicleType vehicleType = order.getVehicleType();
+        List<double[]> legToPickup = routeService.routeGeometry(
+                sLat.doubleValue(), sLng.doubleValue(), pLat.doubleValue(), pLng.doubleValue(), vehicleType);
+        List<double[]> legToDropoff = routeService.routeGeometry(
+                pLat.doubleValue(), pLng.doubleValue(), dLat.doubleValue(), dLng.doubleValue(), vehicleType);
+        List<double[]> legReturning = routeService.routeGeometry(
+                dLat.doubleValue(), dLng.doubleValue(), sLat.doubleValue(), sLng.doubleValue(), vehicleType);
+
         TrackingStage currentStage;
         String stageDesc;
         BigDecimal currentLat;
@@ -101,22 +114,25 @@ public class TrackingService {
             stageDesc = "Vehicle is en route to the pickup location";
             newOrderStatus = OrderStatus.PICKING_UP;
             double t = overallRatio / 0.25;
-            currentLat = interpolate(sLat, pLat, t);
-            currentLng = interpolate(sLng, pLng, t);
+            double[] point = routeService.pointAlongRoute(legToPickup, t);
+            currentLat = coordinate(point, 0, sLat);
+            currentLng = coordinate(point, 1, sLng);
         } else if (overallRatio < 0.75) {
             currentStage = TrackingStage.TO_DROPOFF;
             stageDesc = "Package picked up successfully, speeding to the destination";
             newOrderStatus = OrderStatus.IN_TRANSIT;
             double t = (overallRatio - 0.25) / 0.50;
-            currentLat = interpolate(pLat, dLat, t);
-            currentLng = interpolate(pLng, dLng, t);
+            double[] point = routeService.pointAlongRoute(legToDropoff, t);
+            currentLat = coordinate(point, 0, pLat);
+            currentLng = coordinate(point, 1, pLng);
         } else if (overallRatio < 1.00) {
             currentStage = TrackingStage.RETURNING;
             stageDesc = "Package delivered! Vehicle is returning to the station's charging bay";
             newOrderStatus = OrderStatus.DELIVERED;
             double t = (overallRatio - 0.75) / 0.25;
-            currentLat = interpolate(dLat, sLat, t);
-            currentLng = interpolate(dLng, sLng, t);
+            double[] point = routeService.pointAlongRoute(legReturning, t);
+            currentLat = coordinate(point, 0, dLat);
+            currentLng = coordinate(point, 1, dLng);
         } else {
             currentStage = TrackingStage.COMPLETED;
             stageDesc = "Delivery lifecycle complete, vehicle docked and charging.";
@@ -190,6 +206,7 @@ public class TrackingService {
                 .pickupLng(pLng)
                 .destinationLat(dLat)
                 .destinationLng(dLng)
+                .routePolyline(concatLegs(legToPickup, legToDropoff, legReturning))
                 .progressPercent(progressPercent)
                 .etaMinutesRemaining(etaMinutesRemaining)
                 .events(eventDtos)
@@ -243,11 +260,30 @@ public class TrackingService {
         }
     }
 
-    private BigDecimal interpolate(BigDecimal start, BigDecimal end, double t) {
-        double s = start.doubleValue();
-        double e = end.doubleValue();
-        double val = s + t * (e - s);
-        return BigDecimal.valueOf(val).setScale(7, RoundingMode.HALF_UP);
+    /** 拼接三段航程折线，去掉相邻段之间重复的交界点。 */
+    private List<double[]> concatLegs(List<double[]>... legs) {
+        List<double[]> merged = new ArrayList<>();
+        for (List<double[]> leg : legs) {
+            if (leg == null || leg.isEmpty()) {
+                continue;
+            }
+            for (int i = 0; i < leg.size(); i++) {
+                if (i == 0 && !merged.isEmpty()) {
+                    continue; // 交界点已由前一段的末尾提供
+                }
+                merged.add(leg.get(i));
+            }
+        }
+        return merged;
+    }
+
+    /**
+     * 从沿道路折线的插值点 {lat, lng} 中取指定分量（0=纬度, 1=经度）。
+     * 折线缺失时退回该航段的起点坐标，保证追踪接口永远有位置可返回。
+     */
+    private BigDecimal coordinate(double[] point, int index, BigDecimal fallback) {
+        double value = point == null ? fallback.doubleValue() : point[index];
+        return BigDecimal.valueOf(value).setScale(7, RoundingMode.HALF_UP);
     }
 
     private TrackingResponse buildStaticResponse(Order order, Station station, String vehicleCode) {

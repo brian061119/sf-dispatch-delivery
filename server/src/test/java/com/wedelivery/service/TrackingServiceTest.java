@@ -13,6 +13,7 @@ import com.wedelivery.repository.OrderRepository;
 import com.wedelivery.repository.StationRepository;
 import com.wedelivery.repository.TrackingEventRepository;
 import com.wedelivery.repository.VehicleRepository;
+import com.wedelivery.service.impl.HaversineRouteServiceImpl;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -53,10 +54,15 @@ class TrackingServiceTest {
     @Mock
     private TrackingEventRepository trackingEventRepository;
 
+    // Real straight-line implementation: keeps position assertions deterministic
+    // and offline (the app-configured OSRM provider is never used in tests).
+    private final RouteService routeService = new HaversineRouteServiceImpl();
+
     private TrackingService trackingService;
 
     private void setUp() {
-        trackingService = new TrackingService(orderRepository, stationRepository, vehicleRepository, trackingEventRepository);
+        trackingService = new TrackingService(
+                orderRepository, stationRepository, vehicleRepository, trackingEventRepository, routeService);
     }
 
     // Builds an order whose scheduled window puts overallRatio at ~0.8, i.e.

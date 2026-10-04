@@ -53,6 +53,7 @@ public class TrackingController {
         map.put("pickupLng", res.getPickupLng());
         map.put("destinationLat", res.getDestinationLat());
         map.put("destinationLng", res.getDestinationLng());
+        map.put("routePolyline", res.getRoutePolyline());
         map.put("estimatedArrival", LocalDateTime.now().plusMinutes(res.getEtaMinutesRemaining()).format(DateTimeFormatter.ISO_DATE_TIME));
         // Attach detailed progress fields
         map.put("progressPercent", res.getProgressPercent());
