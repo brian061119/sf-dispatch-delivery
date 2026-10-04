@@ -5,6 +5,7 @@ import com.wedelivery.entity.User;
 import com.wedelivery.service.OrderService;
 import com.wedelivery.service.TrackingService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -47,10 +48,17 @@ public class TrackingController {
         map.put("currentLat", res.getCurrentLat());
         map.put("currentLng", res.getCurrentLng());
         map.put("estimatedArrival", LocalDateTime.now().plusMinutes(res.getEtaMinutesRemaining()).format(DateTimeFormatter.ISO_DATE_TIME));
-        // 附加详细进度
+        // Attach detailed progress fields
         map.put("progressPercent", res.getProgressPercent());
         map.put("currentStageDescription", res.getCurrentStageDescription());
         map.put("events", res.getEvents());
         return map;
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, Object>> handleOrderNotFound(IllegalArgumentException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("error", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
     }
 }

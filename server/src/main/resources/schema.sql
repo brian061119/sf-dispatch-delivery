@@ -114,7 +114,8 @@ CREATE TABLE IF NOT EXISTS tracking_events (
     event_lat DECIMAL(10, 7) NOT NULL,
     event_lng DECIMAL(10, 7) NOT NULL,
     event_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_tracking_order FOREIGN KEY (order_id) REFERENCES orders (id)
+    CONSTRAINT fk_tracking_order FOREIGN KEY (order_id) REFERENCES orders (id),
+    CONSTRAINT uq_tracking_event_order_stage UNIQUE (order_id, stage)
 );
 
 -- ==========================================================
