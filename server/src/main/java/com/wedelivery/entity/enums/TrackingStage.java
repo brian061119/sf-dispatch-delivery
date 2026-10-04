@@ -4,5 +4,6 @@ public enum TrackingStage {
     TO_PICKUP,
     TO_DROPOFF,
     RETURNING,
-    COMPLETED
+    COMPLETED,
+    CANCELLED
 }

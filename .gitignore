@@ -25,6 +25,13 @@ yarn-error.log*
 dist/
 build/
 .vite/
+test-results/
+**/test-results/
+e2e/screenshots/
+**/e2e/screenshots/
+.tracking-code
+**/.tracking-code
+
 
 # Environment / Temp
 .env

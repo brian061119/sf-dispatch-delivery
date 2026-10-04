@@ -44,6 +44,24 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.BAD_REQUEST, e.getMessage());
     }
 
+    @ExceptionHandler({org.springframework.web.bind.MethodArgumentNotValidException.class, org.springframework.validation.BindException.class})
+    public ResponseEntity<Map<String, Object>> handleValidationException(Exception ex) {
+        String errorMsg = "Validation failed";
+        if (ex instanceof org.springframework.web.bind.MethodArgumentNotValidException) {
+            var br = ((org.springframework.web.bind.MethodArgumentNotValidException) ex).getBindingResult();
+            if (br.getFieldError() != null) {
+                errorMsg = br.getFieldError().getField() + ": " + br.getFieldError().getDefaultMessage();
+            }
+        } else if (ex instanceof org.springframework.validation.BindException) {
+            var br = ((org.springframework.validation.BindException) ex).getBindingResult();
+            if (br.getFieldError() != null) {
+                errorMsg = br.getFieldError().getField() + ": " + br.getFieldError().getDefaultMessage();
+            }
+        }
+        log.warn("Validation error: {}", errorMsg);
+        return error(HttpStatus.BAD_REQUEST, errorMsg);
+    }
+
     @ExceptionHandler(PaymentDeclinedException.class)
     public ResponseEntity<Map<String, Object>> handlePaymentDeclined(PaymentDeclinedException ex) {
         log.warn("Payment declined: {}", ex.getMessage());
