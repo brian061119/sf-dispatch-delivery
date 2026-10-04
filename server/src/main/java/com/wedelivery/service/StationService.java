@@ -39,7 +39,7 @@ public class StationService {
     private static final int DEFAULT_ROBOT_BAYS = 15;
 
     // ------------------------------------------------------------------
-    // 站点基础信息（需求 1，接入订单系统）
+    // Station basic information (Requirement 1, integrated with order system)
     // ------------------------------------------------------------------
 
     public List<StationInfoDto> listStationInfo() {
@@ -67,7 +67,7 @@ public class StationService {
                 .build();
     }
 
-    /** 最大容量 = 无人机坪位 + 机器人泊位（不额外建列，避免与分类型泊位口径不一致） */
+    /** Maximum capacity = drone bays + robot bays */
     public static int maxCapacityOf(Station s) {
         int drones = s.getTotalDroneBays() != null ? s.getTotalDroneBays() : 0;
         int robots = s.getTotalRobotBays() != null ? s.getTotalRobotBays() : 0;
@@ -76,11 +76,11 @@ public class StationService {
 
     public Station requireStation(Long stationId) {
         return stationRepository.findById(stationId)
-                .orElseThrow(() -> new IllegalArgumentException("站点不存在: " + stationId));
+                .orElseThrow(() -> new IllegalArgumentException("Station does not exist: " + stationId));
     }
 
     // ------------------------------------------------------------------
-    // 站点实时信息（需求 2）
+    // Station realtime availability (Requirement 2)
     // ------------------------------------------------------------------
 
     public StationAvailabilityDto getStationAvailability(Long stationId) {
@@ -97,12 +97,12 @@ public class StationService {
     }
 
     /**
-     * 统计口径：数量按 station_id 归属统计；「可调度」额外要求载具 IDLE 且物理停驻本站
-     * （location_code == 站点编号），因为停在别处或正在配送的机器无法立刻接单。
-     * 站点级最大可配送路程取本站可调度载具「续航 × 最大速度」的最大值，
-     * 供调用方判断本站能否覆盖到目标送货点。
+     * Aggregation metrics: vehicles grouped by station_id; "dispatchable" requires IDLE
+     * and physically docked at station (location_code == station ID).
+     * Maximum deliverable range is taken from max(endurance * speed) among dispatchable vehicles.
      */
     private StationAvailabilityDto buildAvailability(Station s, List<Vehicle> all) {
+
         int sid = s.getId().intValue();
         List<Vehicle> owned = all.stream()
                 .filter(v -> v.getStationId() != null && v.getStationId() == sid)
@@ -150,12 +150,11 @@ public class StationService {
     }
 
     // ------------------------------------------------------------------
-    // 导入：站点基础信息
+    // Import: Station basic information
     // ------------------------------------------------------------------
 
     /**
-     * 批量导入站点基础信息，按 id（即站点编号）幂等 upsert。
-     * 逐条处理，单条非法只记入 errors，不影响其余条目。
+     * Batch import station information with idempotent upsert keyed by ID.
      */
     @Transactional
     public ImportResultDto importStations(List<StationUpsertRequest> requests) {
@@ -172,19 +171,19 @@ public class StationService {
             String row = "#" + (i + 1);
 
             if (req == null || req.getId() == null) {
-                errors.add(row + " 站点编号(id)为空，已跳过");
+                errors.add(row + " Station ID is empty, skipped");
                 continue;
             }
             if (req.getName() == null || req.getName().isBlank()) {
-                errors.add(row + " (站点 " + req.getId() + ") 名称为空，已跳过");
+                errors.add(row + " (Station " + req.getId() + ") name is empty, skipped");
                 continue;
             }
             if (req.getAddress() == null || req.getAddress().isBlank()) {
-                errors.add(row + " (站点 " + req.getId() + ") 地址为空，已跳过");
+                errors.add(row + " (Station " + req.getId() + ") address is empty, skipped");
                 continue;
             }
             if (req.getLatitude() == null || req.getLongitude() == null) {
-                errors.add(row + " (站点 " + req.getId() + ") 经纬度为空，已跳过");
+                errors.add(row + " (Station " + req.getId() + ") latitude/longitude is empty, skipped");
                 continue;
             }
 
@@ -218,8 +217,9 @@ public class StationService {
     }
 
     // ------------------------------------------------------------------
-    // 运营站控大盘
+    // Admin Operations Dashboard
     // ------------------------------------------------------------------
+
 
     public AdminDashboardDto getAdminDashboard() {
         List<Station> stations = stationRepository.findAll();
@@ -288,12 +288,15 @@ public class StationService {
 
             return AdminDashboardDto.RecentOrderDto.builder()
                     .orderNumber(o.getOrderNumber())
+                    .orderId(o.getOrderNumber())
+                    .packageDescription(o.getPickupAddress() + " -> " + o.getDropoffAddress())
                     .customerUsername(username)
                     .stationName(sName)
                     .vehicleCode(vCode)
                     .vehicleType(o.getVehicleType())
                     .status(o.getStatus())
                     .finalPrice(o.getFinalPrice())
+                    .estimatedCost(o.getFinalPrice())
                     .createdAt(o.getCreatedAt())
                     .build();
         }).collect(Collectors.toList());

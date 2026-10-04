@@ -2,6 +2,9 @@ package com.wedelivery.controller;
 
 import com.wedelivery.dto.OrderCreateRequest;
 import com.wedelivery.dto.OrderCreateResponse;
+import com.wedelivery.dto.OrderReviewRequest;
+import com.wedelivery.dto.OrderReviewResponse;
+import com.wedelivery.dto.OrderUpdateRequest;
 import com.wedelivery.entity.Order;
 import com.wedelivery.entity.User;
 import com.wedelivery.entity.enums.OrderStatus;
@@ -70,10 +73,10 @@ public class OrderController {
             }
             m.put("status", contractStatus);
             m.put("detailStatus", o.getStatus().name());
+            m.put("vehicleType", o.getVehicleType() != null ? o.getVehicleType().name() : null);
             m.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().format(DateTimeFormatter.ISO_DATE_TIME) : "");
             m.put("packageDescription", o.getPickupAddress() + " -> " + o.getDropoffAddress());
             m.put("estimatedCost", o.getFinalPrice());
-            m.put("vehicleType", o.getVehicleType() != null ? o.getVehicleType().name() : null);
             return m;
         }).collect(Collectors.toList());
 
@@ -107,5 +110,71 @@ public class OrderController {
         res.put("orderId", order.getOrderNumber());
         res.put("status", "DELIVERED");
         return ResponseEntity.ok(res);
+    }
+
+    /**
+     * API Contract: PATCH /api/orders/:orderId/cancel (Cancel order, release vehicle and refund payment)
+     */
+    @PatchMapping("/{orderNumber}/cancel")
+    public ResponseEntity<Map<String, Object>> cancelOrder(
+            @PathVariable String orderNumber,
+            @AuthenticationPrincipal User currentUser
+    ) {
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        Order order = orderService.cancelOrder(orderNumber, currentUser);
+
+        Map<String, Object> res = new HashMap<>();
+        res.put("orderId", order.getOrderNumber());
+        res.put("status", "CANCELLED");
+        res.put("cancellationFee", order.getCancellationFee());
+        res.put("refundAmount", order.getRefundAmount());
+        res.put("returnStationId", order.getReturnStationId());
+        return ResponseEntity.ok(res);
+    }
+
+    /**
+     * API Contract: PATCH /api/orders/:orderId (Update order details before transit)
+     */
+    @PatchMapping("/{orderNumber}")
+    public ResponseEntity<Order> updateOrder(
+            @PathVariable String orderNumber,
+            @RequestBody OrderUpdateRequest request,
+            @AuthenticationPrincipal User currentUser
+    ) {
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        return ResponseEntity.ok(orderService.updateOrder(orderNumber, request, currentUser));
+    }
+
+    /**
+     * API Contract: POST /api/orders/:orderId/review (Submit delivery review)
+     */
+    @PostMapping("/{orderNumber}/review")
+    public ResponseEntity<OrderReviewResponse> submitReview(
+            @PathVariable String orderNumber,
+            @Valid @RequestBody OrderReviewRequest request,
+            @AuthenticationPrincipal User currentUser
+    ) {
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        return ResponseEntity.ok(orderService.submitReview(orderNumber, request, currentUser));
+    }
+
+    /**
+     * API Contract: GET /api/orders/:orderId/review (Get delivery review)
+     */
+    @GetMapping("/{orderNumber}/review")
+    public ResponseEntity<OrderReviewResponse> getReview(
+            @PathVariable String orderNumber,
+            @AuthenticationPrincipal User currentUser
+    ) {
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        return ResponseEntity.ok(orderService.getReview(orderNumber, currentUser));
     }
 }

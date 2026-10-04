@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
 @Builder
 public class Vehicle {
 
-    /** 位置编码：不在任何站点（配送途中 / 停放于站外） */
+    /** Location code: not at any station (in delivery / parked off-station) */
     public static final int LOCATION_NOT_AT_STATION = 0;
 
     @Id
@@ -27,6 +27,10 @@ public class Vehicle {
 
     @Column(name = "station_id", nullable = false)
     private Long stationId;
+
+    /** Dynamic rerouting target station ID (reroutes vehicle to a closer station with available bays upon cancellation; resets to null on docking and updates stationId) */
+    @Column(name = "target_station_id")
+    private Long targetStationId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "station_id", insertable = false, updatable = false)
@@ -55,11 +59,11 @@ public class Vehicle {
     @Column(name = "cruise_speed", nullable = false, precision = 5, scale = 2)
     private BigDecimal cruiseSpeed;
 
-    /** 满电续航时间（分钟） */
+    /** Full charge endurance (minutes) */
     @Column(name = "endurance_minutes", nullable = false, precision = 6, scale = 2)
     private BigDecimal enduranceMinutes;
 
-    /** 位置编码：0=不在任何站点，1/2/3=位于对应站点 id */
+    /** Location code: 0 = not at station, 1/2/3 = docked at corresponding station ID */
     @Column(name = "location_code", nullable = false)
     private Integer locationCode;
 
@@ -69,29 +73,29 @@ public class Vehicle {
     @Column(name = "current_lng", precision = 10, scale = 7)
     private BigDecimal currentLng;
 
-    /** 当前速度 km/h，静止为 0 */
+    /** Current speed in km/h, 0 when stationary */
     @Column(name = "current_speed", nullable = false, precision = 5, scale = 2)
     private BigDecimal currentSpeed;
 
-    /** 位置（经纬度 / 位置编码）最后上报时间 */
+    /** Timestamp of last position / location report */
     @Column(name = "position_updated_at")
     private LocalDateTime positionUpdatedAt;
 
-    /** 状态最后上报时间 */
+    /** Timestamp of last status report */
     @Column(name = "status_updated_at")
     private LocalDateTime statusUpdatedAt;
 
-    /** 速度最后上报时间 */
+    /** Timestamp of last speed report */
     @Column(name = "speed_updated_at")
     private LocalDateTime speedUpdatedAt;
 
-    /** 任意实时信息最后上报时间 */
+    /** Timestamp of last update across any realtime metrics */
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     /**
-     * 最大可配送路程（km）= 续航时间 × 默认最大速度。
-     * 需求「最大速度、续航接入站点信息，据可配送路程决定是否配送」的计算基准。
+     * Maximum deliverable range (km) = endurance (hours) × cruise speed.
+     * Used by station dispatching to determine if vehicle can cover the trip.
      */
     public BigDecimal getMaxDeliverableDistanceKm() {
         if (enduranceMinutes == null || cruiseSpeed == null) {
@@ -102,10 +106,11 @@ public class Vehicle {
                 .setScale(2, RoundingMode.HALF_UP);
     }
 
-    /** 是否停驻在某个站点（位置编码 1/2/3） */
+    /** Returns true if vehicle is docked at a station (location code 1/2/3) */
     public boolean isAtStation() {
         return locationCode != null && locationCode > LOCATION_NOT_AT_STATION;
     }
+
 
     @PrePersist
     @PreUpdate
