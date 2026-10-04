@@ -100,7 +100,7 @@ class TrackingServiceTest {
                 .stationId(STATION_ID)
                 .vehicleCode("ROBOT-TEST-01")
                 .vehicleType(VehicleType.ROBOT)
-                .status(VehicleStatus.BUSY)
+                .status(VehicleStatus.IN_DELIVERY)
                 .batteryLevel(new BigDecimal("80.00"))
                 .maxWeight(new BigDecimal("15.00"))
                 .maxVolume(new BigDecimal("0.30"))

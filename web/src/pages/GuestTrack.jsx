@@ -4,6 +4,7 @@ import dayjs from 'dayjs';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { getTrackingByCode } from '../api/tracking';
+import { getStations } from '../api/station';
 import { MapView } from '../components/MapView';
 import { StatusBadge } from '../components/StatusBadge';
 import { StatusTimeline } from '../components/StatusTimeline';
@@ -53,6 +54,7 @@ export default function GuestTrack() {
 
     const [code, setCode] = useState(urlCode);
     const [tracking, setTracking] = useState(null);
+    const [stations, setStations] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     // Guards against a slow response overwriting a newer lookup, and keeps the
@@ -118,8 +120,30 @@ export default function GuestTrack() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [urlLookupCode]);
 
+    // The 3 service stations are public data (GET /api/stations, permitAll).
+    // StationInfoDto uses latitude/longitude — normalize once for MapView.
+    useEffect(() => {
+        getStations()
+            .then((items) => setStations((items ?? []).map((s) => ({ ...s, lat: s.lat ?? s.latitude, lng: s.lng ?? s.longitude }))))
+            .catch(() => {}); // stations are decorative on this page — ignore failures
+    }, []);
+
     const events = tracking?.events ?? [];
     const hasPosition = Number.isFinite(Number(tracking?.currentLat)) && Number.isFinite(Number(tracking?.currentLng));
+    const vehicleNow = hasPosition ? { lat: Number(tracking.currentLat), lng: Number(tracking.currentLng) } : null;
+    const toPoint = (lat, lng) => (Number.isFinite(Number(lat)) && Number.isFinite(Number(lng)) ? { lat: Number(lat), lng: Number(lng) } : null);
+    const pickupPoint = toPoint(tracking?.pickupLat, tracking?.pickupLng);
+    const destinationPoint = toPoint(tracking?.destinationLat, tracking?.destinationLng);
+    // Planned route as a polyline: the milestone events are recorded at fixed
+    // boundary points (station → pickup → destination), so their coordinate
+    // sequence IS the route skeleton; the live vehicle position trails last.
+    const routePoints = events
+        .map((e) => toPoint(e.eventLat, e.eventLng))
+        .filter(Boolean)
+        .filter((p, i, arr) => i === 0 || p.lat !== arr[i - 1].lat || p.lng !== arr[i - 1].lng);
+    if (vehicleNow && (routePoints.length === 0 || vehicleNow.lat !== routePoints[routePoints.length - 1].lat || vehicleNow.lng !== routePoints[routePoints.length - 1].lng)) {
+        routePoints.push(vehicleNow);
+    }
     const progress = deliveryProgress(tracking?.progressPercent);
     const authed = isAuthed();
 
@@ -212,7 +236,7 @@ export default function GuestTrack() {
                     extra={tracking.vehicleType ? (<Space size={6}><VehicleIcon vehicle={tracking.vehicleType} />{tracking.vehicleType}</Space>) : null}
                 >
                     <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                        <StatusTimeline status={tracking.status} />
+                        <StatusTimeline status={tracking.status} events={events} currentStage={tracking.currentStage} />
 
                         <div>
                             <Progress
@@ -231,8 +255,15 @@ export default function GuestTrack() {
                             </Descriptions.Item>
                         </Descriptions>
 
-                        {hasPosition ? (
-                            <MapView vehicle={{ lat: Number(tracking.currentLat), lng: Number(tracking.currentLng) }} height={320} />
+                        {hasPosition || pickupPoint || destinationPoint ? (
+                            <MapView
+                                pickup={pickupPoint}
+                                destination={destinationPoint}
+                                stations={stations}
+                                route={routePoints.length > 1 ? routePoints : undefined}
+                                vehicle={vehicleNow ? { ...vehicleNow, type: tracking.vehicleType, code: tracking.vehicleCode } : undefined}
+                                height={360}
+                            />
                         ) : (
                             <Alert type="info" showIcon message="Location will appear once the vehicle is on the move." />
                         )}

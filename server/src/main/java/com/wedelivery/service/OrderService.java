@@ -293,7 +293,7 @@ public class OrderService {
         // Record delivery completion milestone event
         TrackingEvent event = TrackingEvent.builder()
                 .orderId(order.getId())
-                .stage(TrackingStage.COMPLETED)
+                .stage(TrackingStage.DELIVERY_CONFIRMED)
                 .statusDescription("Delivery confirmed by recipient. Order fulfilled successfully, vehicle returned and docked.")
                 .eventLat(order.getDropoffLat())
                 .eventLng(order.getDropoffLng())
@@ -770,7 +770,7 @@ public class OrderService {
 
         TrackingEvent event = TrackingEvent.builder()
                 .orderId(order.getId())
-                .stage(TrackingStage.TO_PICKUP)
+                .stage(TrackingStage.ORDER_UPDATED)
                 .statusDescription("Order modified (" + newModifiedCount + "/" + maxModifications + " allowed)." + modeDesc + diffDesc)
                 .eventLat(order.getPickupLat())
                 .eventLng(order.getPickupLng())

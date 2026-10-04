@@ -25,6 +25,13 @@ public class TrackingResponse {
     private String currentStageDescription;
     private BigDecimal currentLat;
     private BigDecimal currentLng;
+    // Route endpoints for map rendering (null until known: static/unpaid
+    // responses leave them unset). Pickup equals the station while
+    // isStationPickup orders are simulated.
+    private BigDecimal pickupLat;
+    private BigDecimal pickupLng;
+    private BigDecimal destinationLat;
+    private BigDecimal destinationLng;
     private BigDecimal progressPercent; // 0.0 ~ 100.0
     private Integer etaMinutesRemaining;
     private List<TrackingEventDto> events;

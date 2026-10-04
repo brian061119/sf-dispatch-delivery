@@ -45,8 +45,14 @@ public class TrackingController {
         map.put("orderId", res.getOrderNumber());
         map.put("status", res.getOrderStatus().name());
         map.put("vehicleType", res.getVehicleType().name());
+        map.put("vehicleCode", res.getVehicleCode());
+        map.put("currentStage", res.getCurrentStage() != null ? res.getCurrentStage().name() : null);
         map.put("currentLat", res.getCurrentLat());
         map.put("currentLng", res.getCurrentLng());
+        map.put("pickupLat", res.getPickupLat());
+        map.put("pickupLng", res.getPickupLng());
+        map.put("destinationLat", res.getDestinationLat());
+        map.put("destinationLng", res.getDestinationLng());
         map.put("estimatedArrival", LocalDateTime.now().plusMinutes(res.getEtaMinutesRemaining()).format(DateTimeFormatter.ISO_DATE_TIME));
         // Attach detailed progress fields
         map.put("progressPercent", res.getProgressPercent());
