@@ -8,6 +8,7 @@ import { normalizeStatus } from "../api/tracking";
 import { geocode, isWithinSanFrancisco } from "../lib/geocode";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../store/auth";
+import { apiErrorMessage } from "../lib/http";
 
 const { Title, Text } = Typography;
 const formatAddress = (value) => value?.line1 ? [value.line1, value.city, value.zip].filter(Boolean).join(", ") : "Address details are unavailable";
@@ -97,7 +98,7 @@ export default function OrderDetail() {
       setMessage("Receipt confirmed. Thank you! You can now review your delivery below.");
       fetchReview(orderId);
     } catch (err) {
-      setError(err?.response?.data?.message || "Could not confirm receipt.");
+      setError(apiErrorMessage(err, "Could not confirm receipt."));
     } finally {
       setReceiptBusy(false);
     }
@@ -111,7 +112,7 @@ export default function OrderDetail() {
       setExistingReview(res);
       setMessage("Thanks for your review! Your feedback helps us improve.");
     } catch (err) {
-      setError(err?.response?.data?.message || "Could not submit your review.");
+      setError(apiErrorMessage(err, "Could not submit your review."));
     } finally {
       setReviewBusy(false);
     }
@@ -125,7 +126,7 @@ export default function OrderDetail() {
       setOrder((current) => ({ ...current, status: result.status ?? "CANCELLED" }));
       setMessage("Order cancelled. Any eligible refund has been processed.");
     } catch (err) {
-      setError(err?.response?.data?.message || "Could not cancel this order.");
+      setError(apiErrorMessage(err, "Could not cancel this order."));
     } finally {
       setCancelBusy(false);
     }
@@ -139,7 +140,7 @@ export default function OrderDetail() {
       setOrder(toView(updated));
       setMessage("Order upgraded to Drone Express! Surcharge has been processed.");
     } catch (err) {
-      setError(err?.response?.data?.message || "Could not upgrade order.");
+      setError(apiErrorMessage(err, "Could not upgrade order."));
     } finally {
       setUpgradeBusy(false);
     }
@@ -326,7 +327,7 @@ export default function OrderDetail() {
       setMessage("Order details modified successfully! Carrier route and price adjustments have been settled.");
       setEditModalVisible(false);
     } catch (err) {
-      setError(err?.response?.data?.message || err?.message || "Could not update order.");
+      setError(apiErrorMessage(err, err?.message || "Could not update order."));
     } finally {
       setEditBusy(false);
     }

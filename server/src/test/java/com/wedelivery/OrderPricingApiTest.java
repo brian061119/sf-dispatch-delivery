@@ -72,6 +72,17 @@ class OrderPricingApiTest {
     }
 
     @Test
+    @DisplayName("订单列表返回载具类型（前端历史列表的 Vehicle 列）")
+    void orderListIncludesVehicleType() throws Exception {
+        String token = login("normal_user");
+        JsonNode order = assertOrderMatchesRecommendation(token, DOWNTOWN_TRIP, "CAND-FASTEST");
+        mvc.perform(get("/api/orders").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.orders[?(@.orderId == '" + order.path("orderNumber").asText() + "')].vehicleType")
+                        .value(org.hamcrest.Matchers.contains("DRONE")));
+    }
+
+    @Test
     @DisplayName("取件点靠近站点 3 时从站点 3 发车（不再固定站点 1）")
     void orderUsesRecommendedStation() throws Exception {
         JsonNode order = assertOrderMatchesRecommendation(login("normal_user"), MISSION_TRIP, "CAND-BEST_VALUE");

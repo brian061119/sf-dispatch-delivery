@@ -1,0 +1,24 @@
+/* Global page chrome. antd's reset.css covers components; this file only owns
+   what the Layout doesn't:
+   - overflow-x:hidden absorbs the 100vw rounding error from FULL_BLEED pages
+     (100vw includes the scrollbar width, so a full-bleed hero is ~15px wider
+     than the visible viewport and would otherwise cause horizontal jitter).
+   - .auth-brand is the split-screen left panel on Login/Register; it hides on
+     narrow viewports where a 46% column would squeeze the form. */
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  overflow-x: hidden;
+  background: #f4f6f8;
+}
+
+@media (max-width: 900px) {
+  .auth-brand {
+    display: none !important;
+  }
+}

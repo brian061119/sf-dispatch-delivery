@@ -30,7 +30,7 @@ function RequireAdmin({ children }) {
 }
 export default function App() {
   return (
-    <Layout style={{ minHeight: "100vh", background: "#eef2f6" }}>
+    <Layout style={{ minHeight: "100vh", background: "#f4f6f8" }}>
       <AppHeader />
       <Layout.Content
         style={{ padding: 24, maxWidth: 1100, margin: "0 auto", width: "100%" }}

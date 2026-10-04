@@ -115,6 +115,8 @@ Response **201**:
 
 Both return the same shape: `orderId, status (raw 6-state), vehicleType, currentLat, currentLng, estimatedArrival, progressPercent, currentStageDescription, events[{stage, statusDescription, eventLat, eventLng, eventTime}]`. Polling every 5 s is fine.
 
+**Orders now advance on their own (2026-10-03, branch `guoqing`).** `SimulationScheduler` runs the existing `SimulationService.tick()` every 10 s: active orders move `PAID → PICKING_UP → IN_TRANSIT → DELIVERED` by the clock, vehicles fly back and become `IDLE`, and `CHARGING` vehicles refill. Before this, an order only moved while someone polled its tracking, so unwatched orders stayed `PAID` and kept their vehicle forever. Tracking still works the same; polling is no longer required for progress. Config: `SIMULATION_AUTO_TICK` (default `true`), `SIMULATION_TICK_MS` (default `10000`). Each tick counts as 1 simulated minute for returning and charging, so those run about 6x faster than real time. Off in tests (`src/test/resources/config/application.yml`).
+
 **Tracking code input on `/track`:** 16 characters from `A–Z` and `2–9` without `0/O/1/I`. Uppercase the input and strip spaces/dashes before calling.
 
 ### 4.8 Errors

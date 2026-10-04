@@ -9,6 +9,7 @@ import { MapView } from "../components/MapView";
 import { autocomplete, geocode, geocodePlaceId, isWithinSanFrancisco, reverseGeocode } from "../lib/geocode";
 import { DEMO_ADDRESSES } from "../lib/addresses";
 import { getRole } from "../lib/auth";
+import { apiErrorMessage } from "../lib/http";
 import { useWizard } from "../store/wizard";
 
 const { Title, Text } = Typography;
@@ -42,7 +43,7 @@ export default function OrderWizard() {
       wizard.setCandidates(result.candidates ?? []);
       wizard.select(undefined); // stale picks must not survive a re-quote
       setStep(2);
-    } catch (err) { setError(err?.response?.data?.message || "Could not load delivery options."); }
+    } catch (err) { setError(apiErrorMessage(err, "Could not load delivery options.")); }
     finally { setBusy(false); }
   }
 
@@ -65,7 +66,7 @@ export default function OrderWizard() {
         setError("That delivery option is no longer available. Please pick an option again.");
         setStep(1); // re-quote from the package step
       } else {
-        setError(err?.message || err?.response?.data?.message || "Payment could not be completed. Please try again.");
+        setError(apiErrorMessage(err, "Payment could not be completed. Please try again."));
       }
     }
     finally { setBusy(false); }
