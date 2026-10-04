@@ -135,6 +135,9 @@ public class Order {
     @Transient
     private Boolean droneUpgradeAvailable;
 
+    @Transient
+    private Integer maxModificationsAllowed;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
