@@ -313,16 +313,43 @@ export async function sendChatMessage({ message }) {
     };
 }
 
-// Admin console (mirrors GET /api/admin/dashboard).
+// Admin console (mirrors GET /api/admin/dashboard → AdminDashboardDto: stations
+// carry their vehicles; recentOrders use orderNumber / customerUsername / finalPrice
+// and the raw 6-state status, NOT the customer order-list shape).
 export async function getAdminDashboard() {
     await latency();
-    return {
-        stations: stations.map((s, i) => ({
-            stationId: i + 1, stationCode: s.stationId.toUpperCase(), name: s.name, address: s.address,
+    const now = new Date().toISOString();
+    const vehicleStatuses = ['IDLE', 'IN_DELIVERY', 'IDLE', 'CHARGING', 'IDLE', 'FAULT', 'OFFLINE'];
+    let nextId = 1;
+    const stationDtos = stations.map((s, i) => {
+        const vehicles = [];
+        for (const [type, count] of [['DRONE', s.drones], ['ROBOT', s.robots]]) {
+            for (let n = 1; n <= count; n++) {
+                const status = vehicleStatuses[(nextId + i) % vehicleStatuses.length];
+                vehicles.push({
+                    id: nextId++, vehicleCode: `${type}-${s.stationId.toUpperCase()}-0${n}`, vehicleType: type, status,
+                    batteryLevel: status === 'CHARGING' ? 35 : 60 + ((nextId * 7) % 40), maxWeight: type === 'DRONE' ? 3 : 15,
+                    currentSpeed: status === 'IN_DELIVERY' ? (type === 'DRONE' ? 45 : 15) : 0,
+                    locationCode: status === 'IN_DELIVERY' ? 0 : i + 1, updatedAt: now,
+                });
+            }
+        }
+        return {
+            stationId: i + 1, stationCode: String(i + 1), name: s.name, address: s.address,
             contactPhone: `(415) 555-010${i + 1}`, latitude: s.lat, longitude: s.lng,
-            totalDroneBays: 8 + i, totalRobotBays: 12 + i,
+            maxCapacity: 25, totalDroneBays: 8 + i, totalRobotBays: 12 + i, vehicles,
+        };
+    });
+    const all = stationDtos.flatMap((st) => st.vehicles);
+    const count = (status) => all.filter((v) => v.status === status).length;
+    return {
+        stations: stationDtos,
+        totalVehicles: all.length, idleVehicles: count('IDLE'), busyVehicles: count('IN_DELIVERY'),
+        chargingVehicles: count('CHARGING'), faultVehicles: count('FAULT'), offlineVehicles: count('OFFLINE'),
+        recentOrders: orders.slice(0, 5).map((o, i) => ({
+            orderNumber: o.orderId, customerUsername: i % 2 ? 'vip_user' : 'normal_user',
+            stationName: stations[i % stations.length].name, vehicleCode: `${o.vehicleType}-ST${(i % stations.length) + 1}-01`,
+            vehicleType: o.vehicleType, status: o.detailStatus, finalPrice: o.estimatedCost, createdAt: o.createdAt,
         })),
-        totalVehicles: 15, idleVehicles: 9, busyVehicles: 3, chargingVehicles: 2, faultVehicles: 1, offlineVehicles: 0,
-        recentOrders: orders.slice(0, 5).map((o) => ({ ...o })),
     };
 }

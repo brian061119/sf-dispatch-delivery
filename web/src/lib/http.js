@@ -22,3 +22,20 @@ http.interceptors.response.use((res) => res, (err) => {
     }
     return Promise.reject(err);
 });
+
+/**
+ * Extracts a human-readable message from a failed API call.
+ *
+ * The backend is not consistent about the field name, so we check both:
+ *   - GlobalExceptionHandler (400/403/404 ...) -> { message: "..." }
+ *   - DispatchController's own handler (404)   -> { error:   "..." }
+ *   - hand-written error bodies                 -> { code: "PAYMENT_DECLINED", ... }
+ * Reading only `data.message` silently produced a generic fallback message for
+ * every SF-boundary / missing-coordinate rejection, hiding text the backend had
+ * already written for the user.
+ */
+export function apiErrorMessage(err, fallback) {
+    const data = err?.response?.data;
+    if (typeof data === 'string' && data.trim()) return data;
+    return data?.message || data?.error || fallback;
+}

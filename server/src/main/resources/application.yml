@@ -40,3 +40,9 @@ jwt:
   # 本地开发默认值；aws profile 中必须通过环境变量 JWT_SECRET 提供
   secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
   expirationMs: ${JWT_EXPIRATION_MS:86400000} # 24 小时有效
+
+# demo 模拟器定时推进（SimulationScheduler）
+wedelivery:
+  simulation:
+    auto-tick: ${SIMULATION_AUTO_TICK:true}
+    tick-ms: ${SIMULATION_TICK_MS:10000}
