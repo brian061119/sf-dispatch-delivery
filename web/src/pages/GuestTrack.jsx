@@ -221,9 +221,28 @@ export default function GuestTrack() {
             // as leg boundaries.
             let lo = 0;
             let hi = pts.length - 1;
-            const sameSpot = (p, q) => Math.abs(p.lat - q.lat) < 1e-6 && Math.abs(p.lng - q.lng) < 1e-6;
-            const iP = pickupPoint ? pts.findIndex((p) => sameSpot(p, pickupPoint)) : -1;
-            const iD = destinationPoint ? pts.findIndex((p) => sameSpot(p, destinationPoint)) : -1;
+            // Leg boundaries. The road-network polyline is SNAPped to the
+            // street grid: the junction vertices where the three legs meet are
+            // the router's snapped coordinates, which can differ from the raw
+            // pickup/destination coords by tens of meters (measured ~0.0005 deg
+            // against OSRM). An exact-match findIndex therefore silently fails
+            // for ROBOT routes (it only ever worked for the straight-line
+            // drone geometry), the leg restriction below is skipped, and the
+            // global nearest-vertex search locks back onto the OUTBOUND leg
+            // while the vehicle returns — re-painting the already-delivered
+            // leg as dashed. Pick the NEAREST vertex instead, with a generous
+            // sanity radius (~0.001 deg ≈ 100 m, squared) before degrading.
+            const nearestTo = (q) => {
+                let idx = -1;
+                let best = Infinity;
+                for (let i = 0; i < pts.length; i++) {
+                    const d = (pts[i].lat - q.lat) ** 2 + (pts[i].lng - q.lng) ** 2;
+                    if (d < best) { best = d; idx = i; }
+                }
+                return best < 1e-6 ? idx : -1;
+            };
+            const iP = pickupPoint ? nearestTo(pickupPoint) : -1;
+            const iD = destinationPoint ? nearestTo(destinationPoint) : -1;
             if (stage === 'TO_PICKUP' && iP > 0) hi = iP;
             else if (stage === 'TO_DROPOFF' && iP > 0 && iD > iP) { lo = iP; hi = iD; }
             else if (stage === 'RETURNING' && iD > 0 && iD < pts.length - 1) lo = iD;
