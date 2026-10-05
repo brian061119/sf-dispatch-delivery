@@ -33,7 +33,7 @@ export function StatusTimeline({ status, events = [], currentStage }) {
 
     const items = [
         {
-            title: 'Confirmed 已确认',
+            title: 'Confirmed',
             description: (
                 <span>
                     {fmtTime(confirmed?.eventTime)}
@@ -44,13 +44,13 @@ export function StatusTimeline({ status, events = [], currentStage }) {
             ),
         },
         {
-            title: 'Picked up 已取件',
+            title: 'Picked up',
             description: pickedUp
                 ? <span>{fmtTime(pickedUp.eventTime)}<Typography.Text type="secondary" style={{ display: 'block', fontSize: 12 }}>{pickedUp.statusDescription}</Typography.Text></span>
                 : 'Waiting for the courier to arrive at the pickup point…',
         },
         {
-            title: 'Delivered 已送达',
+            title: 'Delivered',
             description: delivered
                 ? <span>{fmtTime(delivered.eventTime)}<Typography.Text type="secondary" style={{ display: 'block', fontSize: 12 }}>{delivered.statusDescription}</Typography.Text></span>
                 : 'The courier will hand over the package and head back to its station.',
@@ -68,7 +68,7 @@ export function StatusTimeline({ status, events = [], currentStage }) {
     // (error-styled) current step at the Cancelled entry, not at Confirmed.
     if (cancelledEvt) {
         items.push({
-            title: 'Cancelled 已取消',
+            title: 'Cancelled',
             description: (
                 <span>
                     {fmtTime(cancelledEvt.eventTime)}
