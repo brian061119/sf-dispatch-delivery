@@ -70,6 +70,7 @@ export function MapView({
     vehicle,
     stations = [],
     route,
+    traveled,
     height = 420,
     onMapClick,
 }) {
@@ -110,7 +111,13 @@ export function MapView({
             {route && route.length > 1 && (
                 <Polyline
                     positions={route.filter(isValidPoint).map(toXY)}
-                    pathOptions={{ color: '#1971c2', weight: 3, dashArray: '6 8' }}
+                    pathOptions={{ color: '#74c0fc', weight: 3, dashArray: '6 8' }}
+                />
+            )}
+            {traveled && traveled.length > 1 && (
+                <Polyline
+                    positions={traveled.filter(isValidPoint).map(toXY)}
+                    pathOptions={{ color: '#1971c2', weight: 4 }}
                 />
             )}
         </MapContainer>

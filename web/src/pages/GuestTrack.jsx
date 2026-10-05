@@ -187,6 +187,52 @@ export default function GuestTrack() {
     // and the plan is dead. Showing markers (pickup/destination/stations) is
     // honest; a stray line stitched from leftover event coordinates is not.
     const showRoute = tracking?.status !== 'CANCELLED' && routePoints.length > 1;
+
+    // Split the planned route into "already travelled" (solid, darker) and
+    // "still ahead" (dashed, lighter) so the user can see live progress.
+    // Anchor the split at the vehicle's live position when we have it; otherwise
+    // fall back to progressPercent projected onto the polyline arc length.
+    const splitRoute = (pts, veh, progress) => {
+        if (!pts || pts.length < 2) return { traveledPoints: [], remainingPoints: pts ?? [] };
+        if (veh) {
+            let best = 0;
+            let bestD = Infinity;
+            for (let i = 0; i < pts.length; i++) {
+                const d = (pts[i].lat - veh.lat) ** 2 + (pts[i].lng - veh.lng) ** 2;
+                if (d < bestD) {
+                    bestD = d;
+                    best = i;
+                }
+            }
+            return {
+                traveledPoints: [...pts.slice(0, best + 1), veh],
+                remainingPoints: pts.slice(best),
+            };
+        }
+        const frac = Number(progress);
+        if (Number.isFinite(frac) && frac > 0 && frac < 100) {
+            const seg = [];
+            let total = 0;
+            for (let i = 1; i < pts.length; i++) {
+                seg.push(Math.hypot(pts[i].lat - pts[i - 1].lat, pts[i].lng - pts[i - 1].lng));
+                total += seg[seg.length - 1];
+            }
+            let target = total * (frac / 100);
+            let acc = 0;
+            let idx = 0;
+            for (let i = 0; i < seg.length; i++) {
+                if (acc + seg[i] >= target) {
+                    idx = i;
+                    break;
+                }
+                acc += seg[i];
+                idx = i;
+            }
+            return { traveledPoints: pts.slice(0, idx + 1), remainingPoints: pts.slice(idx) };
+        }
+        return { traveledPoints: [], remainingPoints: pts };
+    };
+    const { traveledPoints, remainingPoints } = splitRoute(routePoints, vehicleNow, tracking?.progressPercent);
     const progress = deliveryProgress(tracking?.progressPercent);
     const authed = isAuthed();
 
@@ -318,7 +364,8 @@ export default function GuestTrack() {
                                 pickup={pickupPoint}
                                 destination={destinationPoint}
                                 stations={stations}
-                                route={showRoute ? routePoints : undefined}
+                                route={showRoute ? remainingPoints : undefined}
+                                traveled={showRoute ? traveledPoints : undefined}
                                 vehicle={vehicleNow ? { ...vehicleNow, type: tracking.vehicleType, code: tracking.vehicleCode } : undefined}
                                 height={360}
                             />
