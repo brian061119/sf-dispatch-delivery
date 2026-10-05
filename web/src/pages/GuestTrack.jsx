@@ -155,8 +155,16 @@ export default function GuestTrack() {
     }, []);
 
     const events = tracking?.events ?? [];
+    // DELIVERED covers both the return-to-station leg and the final COMPLETED
+    // moment: the package is handed over, so the trip is over for the user.
+    // We stop showing the vehicle marker and draw the whole loop solid below.
+    // Only the final COMPLETED stage hides the vehicle and draws the whole
+    // loop solid. The RETURNING leg (backend still reports status=DELIVERED
+    // there, because the package is already handed over) must keep showing the
+    // marker and let the D->S segment fill in solid as the vehicle drives back.
+    const isDelivered = tracking?.currentStage === 'COMPLETED';
     const hasPosition = Number.isFinite(Number(tracking?.currentLat)) && Number.isFinite(Number(tracking?.currentLng));
-    const vehicleNow = hasPosition ? { lat: Number(tracking.currentLat), lng: Number(tracking.currentLng) } : null;
+    const vehicleNow = !isDelivered && hasPosition ? { lat: Number(tracking.currentLat), lng: Number(tracking.currentLng) } : null;
     const toPoint = (lat, lng) => (Number.isFinite(Number(lat)) && Number.isFinite(Number(lng)) ? { lat: Number(lat), lng: Number(lng) } : null);
     const pickupPoint = toPoint(tracking?.pickupLat, tracking?.pickupLng);
     const destinationPoint = toPoint(tracking?.destinationLat, tracking?.destinationLng);
@@ -206,7 +214,13 @@ export default function GuestTrack() {
             }
             return {
                 traveledPoints: [...pts.slice(0, best + 1), veh],
-                remainingPoints: pts.slice(best),
+                // Start the dashed remainder at the live vehicle position, not at
+                // the nearest polyline vertex. The vehicle coordinate is an
+                // interpolated point that sits BETWEEN two vertices, so drawing
+                // the dash from the vertex would leave the marker straddling the
+                // solid/dashed boundary. Anchoring both ends at `veh` pins the
+                // marker exactly on the boundary.
+                remainingPoints: [veh, ...pts.slice(best + 1)],
             };
         }
         const frac = Number(progress);
@@ -232,7 +246,9 @@ export default function GuestTrack() {
         }
         return { traveledPoints: [], remainingPoints: pts };
     };
-    const { traveledPoints, remainingPoints } = splitRoute(routePoints, vehicleNow, tracking?.progressPercent);
+    const { traveledPoints, remainingPoints } = isDelivered
+        ? { traveledPoints: routePoints, remainingPoints: [] }
+        : splitRoute(routePoints, vehicleNow, tracking?.progressPercent);
     const progress = deliveryProgress(tracking?.progressPercent);
     const authed = isAuthed();
 

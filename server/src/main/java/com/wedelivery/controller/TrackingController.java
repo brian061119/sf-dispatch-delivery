@@ -60,9 +60,12 @@ public class TrackingController {
         map.put("destinationLat", res.getDestinationLat());
         map.put("destinationLng", res.getDestinationLng());
         map.put("routePolyline", res.getRoutePolyline());
-        // 已取消的订单没有"预计送达"——now + 0 分钟会显示成一个假 ETA（恰好
-        // 等于查询时刻），对用户是误导；输出 null，前端显示为 "—"。
-        map.put("estimatedArrival", res.getOrderStatus() == OrderStatus.CANCELLED
+        // Cancelled and delivered orders have no "estimated arrival":
+        // now + 0 minutes renders as a fake ETA that coincidentally equals the
+        // query instant (it looked like the vehicle's return time). Emit null
+        // so the frontend shows "—".
+        map.put("estimatedArrival", (res.getOrderStatus() == OrderStatus.CANCELLED
+                || res.getOrderStatus() == OrderStatus.DELIVERED)
                 ? null
                 : LocalDateTime.now().plusMinutes(res.getEtaMinutesRemaining()).format(DateTimeFormatter.ISO_DATE_TIME));
         // Attach detailed progress fields
