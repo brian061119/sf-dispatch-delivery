@@ -246,24 +246,47 @@ export default function GuestTrack() {
             if (stage === 'TO_PICKUP' && iP > 0) hi = iP;
             else if (stage === 'TO_DROPOFF' && iP > 0 && iD > iP) { lo = iP; hi = iD; }
             else if (stage === 'RETURNING' && iD > 0 && iD < pts.length - 1) lo = iD;
-            let best = lo;
+            // Split at the point ON the polyline closest to the vehicle
+            // (project veh onto every segment of the leg), NOT at the nearest
+            // VERTEX. Vertex snapping quantizes the boundary to polyline
+            // vertices — fine for the dense OSRM geometry (vertices every few
+            // meters) but badly wrong for straight-line drone legs, which have
+            // only their two endpoints as vertices: mid-leg the boundary
+            // snapped to the leg's far end, the dashed remainder collapsed to
+            // a single un-drawable point, and the whole loop painted solid
+            // with the marker stranded mid-line. Projection puts the solid /
+            // dashed boundary exactly under the marker at any position.
+            if (hi <= lo) {
+                return { traveledPoints: pts.slice(0, lo + 1), remainingPoints: [veh, ...pts.slice(lo + 1)] };
+            }
+            let segIdx = lo;
+            let proj = pts[lo];
             let bestD = Infinity;
-            for (let i = lo; i <= hi; i++) {
-                const d = (pts[i].lat - veh.lat) ** 2 + (pts[i].lng - veh.lng) ** 2;
+            for (let i = lo; i < hi; i++) {
+                const a = pts[i];
+                const b = pts[i + 1];
+                const abLat = b.lat - a.lat;
+                const abLng = b.lng - a.lng;
+                const len2 = abLat * abLat + abLng * abLng;
+                let t = len2 > 0 ? ((veh.lat - a.lat) * abLat + (veh.lng - a.lng) * abLng) / len2 : 0;
+                t = Math.max(0, Math.min(1, t));
+                const p = { lat: a.lat + abLat * t, lng: a.lng + abLng * t };
+                const d = (p.lat - veh.lat) ** 2 + (p.lng - veh.lng) ** 2;
                 if (d < bestD) {
                     bestD = d;
-                    best = i;
+                    segIdx = i;
+                    proj = p;
                 }
             }
             return {
-                traveledPoints: [...pts.slice(0, best + 1), veh],
-                // Start the dashed remainder at the live vehicle position, not at
+                traveledPoints: [...pts.slice(0, segIdx + 1), proj],
+                // Start the dashed remainder at the projected split point, not at
                 // the nearest polyline vertex. The vehicle coordinate is an
                 // interpolated point that sits BETWEEN two vertices, so drawing
                 // the dash from the vertex would leave the marker straddling the
-                // solid/dashed boundary. Anchoring both ends at `veh` pins the
+                // solid/dashed boundary. Anchoring both ends at `proj` pins the
                 // marker exactly on the boundary.
-                remainingPoints: [veh, ...pts.slice(best + 1)],
+                remainingPoints: [proj, ...pts.slice(segIdx + 1)],
             };
         }
         const frac = Number(progress);
