@@ -28,9 +28,11 @@ import { apiErrorMessage } from '../lib/http';
 //   /track?code=<code> canonical, shareable result link
 
 const POLL_MS = 5000;
-// Once the delivery reaches one of these the backend stops moving it, so
-// polling would only write to the database for nothing.
-const TERMINAL_STATUSES = ['DELIVERED', 'CANCELLED'];
+// The terminal state for POLLING is COMPLETED (or CANCELLED): the backend
+// reports status=DELIVERED as soon as the package is handed over — which
+// INCLUDES the RETURNING leg — but the vehicle is still driving back to the
+// station then, so we must keep polling (and moving the marker) until the
+// vehicle's own currentStage reaches COMPLETED.
 const ORDER_NUMBER_PREFIX = 'SFORD';
 
 /** Codes are case-insensitive and people paste them with spaces. */
@@ -104,11 +106,16 @@ export default function GuestTrack() {
         }
     }, [navigate, urlLookupCode]);
 
-    // Poll only while the delivery can still move. Note that a tracking
-    // request is not a pure read: the backend advances its simulation on every
-    // call, so stopping at the terminal state matters.
+    // Poll only while the delivery can still move. The backend advances its
+    // simulation on every tracking call, so stopping at the true terminal
+    // state matters. A delivery's terminal state for POLLING is COMPLETED (or
+    // CANCELLED); status=DELIVERED already fires during the RETURNING leg, so
+    // matching on status alone would freeze the marker as soon as the package
+    // is handed over even though the vehicle is still driving back.
     useEffect(() => {
-        if (!tracking || TERMINAL_STATUSES.includes(tracking.status)) return undefined;
+        const terminal =
+            tracking?.currentStage === 'COMPLETED' || tracking?.status === 'CANCELLED';
+        if (!tracking || terminal) return undefined;
         const timer = setInterval(() => lookup(activeCodeRef.current, { silent: true }), POLL_MS);
         return () => clearInterval(timer);
     }, [tracking, lookup]);
@@ -200,12 +207,29 @@ export default function GuestTrack() {
     // "still ahead" (dashed, lighter) so the user can see live progress.
     // Anchor the split at the vehicle's live position when we have it; otherwise
     // fall back to progressPercent projected onto the polyline arc length.
-    const splitRoute = (pts, veh, progress) => {
+    const splitRoute = (pts, veh, progress, stage) => {
         if (!pts || pts.length < 2) return { traveledPoints: [], remainingPoints: pts ?? [] };
         if (veh) {
-            let best = 0;
+            // The loop polyline is station → pickup → dropoff → station, so the
+            // FIRST and LAST vertices share the same station coordinates — and
+            // for straight-line (drone) routes the outbound and return legs can
+            // also run close/parallel. A global nearest-vertex search can then
+            // lock onto the WRONG leg (e.g. the identical station vertex at the
+            // END of the polyline while the vehicle just left it at the start),
+            // which paints the whole loop solid. Restrict the search to the leg
+            // the vehicle is actually on, using the pickup/dropoff coordinates
+            // as leg boundaries.
+            let lo = 0;
+            let hi = pts.length - 1;
+            const sameSpot = (p, q) => Math.abs(p.lat - q.lat) < 1e-6 && Math.abs(p.lng - q.lng) < 1e-6;
+            const iP = pickupPoint ? pts.findIndex((p) => sameSpot(p, pickupPoint)) : -1;
+            const iD = destinationPoint ? pts.findIndex((p) => sameSpot(p, destinationPoint)) : -1;
+            if (stage === 'TO_PICKUP' && iP > 0) hi = iP;
+            else if (stage === 'TO_DROPOFF' && iP > 0 && iD > iP) { lo = iP; hi = iD; }
+            else if (stage === 'RETURNING' && iD > 0 && iD < pts.length - 1) lo = iD;
+            let best = lo;
             let bestD = Infinity;
-            for (let i = 0; i < pts.length; i++) {
+            for (let i = lo; i <= hi; i++) {
                 const d = (pts[i].lat - veh.lat) ** 2 + (pts[i].lng - veh.lng) ** 2;
                 if (d < bestD) {
                     bestD = d;
@@ -248,7 +272,7 @@ export default function GuestTrack() {
     };
     const { traveledPoints, remainingPoints } = isDelivered
         ? { traveledPoints: routePoints, remainingPoints: [] }
-        : splitRoute(routePoints, vehicleNow, tracking?.progressPercent);
+        : splitRoute(routePoints, vehicleNow, tracking?.progressPercent, tracking?.currentStage);
     const progress = deliveryProgress(tracking?.progressPercent);
     const authed = isAuthed();
 
