@@ -1,0 +1,7 @@
+# Test-only overrides, merged on top of src/main/resources/application.yml
+# (Spring Boot loads classpath:/config/application.yml after classpath:/application.yml).
+wedelivery:
+  simulation:
+    # The background tick would advance orders and vehicles while a test is
+    # asserting on them; tests that need a tick call SimulationService.tick().
+    auto-tick: false

@@ -1,0 +1,126 @@
+<svg width="900" height="520" viewBox="0 0 900 520" xmlns="http://www.w3.org/2000/svg" style="background:#ffffff; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <defs>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="1" dy="2" stdDeviation="3" flood-opacity="0.1"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#4B5563"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="30" y="35" font-size="20" font-weight="bold" fill="#1F2937">WeDelivery 数据库实体关系模型 (ER Diagram)</text>
+  <text x="30" y="55" font-size="12" fill="#6B7280">6 张核心业务数据表与主外键关联拓扑</text>
+
+  <!-- USERS Table -->
+  <g transform="translate(30, 80)" filter="url(#shadow)">
+    <rect width="240" height="190" rx="8" fill="#FFFFFF" stroke="#3B82F6" stroke-width="2"/>
+    <path d="M 0 0 h 240 v 34 h -240 z" fill="#EFF6FF" rx="8"/>
+    <text x="12" y="22" font-size="14" font-weight="bold" fill="#1D4ED8">users (用户/会员表)</text>
+    <text x="12" y="52" font-size="12" fill="#1F2937"><tspan font-weight="bold" fill="#D97706">PK </tspan>id : BIGINT</text>
+    <text x="12" y="72" font-size="12" fill="#1F2937"><tspan fill="#059669">UK </tspan>username : VARCHAR(64)</text>
+    <text x="12" y="92" font-size="12" fill="#4B5563">password_hash : VARCHAR(255)</text>
+    <text x="12" y="112" font-size="12" fill="#1F2937"><tspan fill="#059669">UK </tspan>email : VARCHAR(128)</text>
+    <text x="12" y="132" font-size="12" fill="#4B5563">first_name, last_name</text>
+    <text x="12" y="152" font-size="12" fill="#2563EB">role : USER / VIP / ADMIN</text>
+    <text x="12" y="172" font-size="12" fill="#6B7280">vip_expire_at, created_at</text>
+  </g>
+
+  <!-- STATIONS Table -->
+  <g transform="translate(30, 310)" filter="url(#shadow)">
+    <rect width="240" height="170" rx="8" fill="#FFFFFF" stroke="#10B981" stroke-width="2"/>
+    <path d="M 0 0 h 240 v 34 h -240 z" fill="#ECFDF5" rx="8"/>
+    <text x="12" y="22" font-size="14" font-weight="bold" fill="#047857">stations (3个分配站)</text>
+    <text x="12" y="52" font-size="12" fill="#1F2937"><tspan font-weight="bold" fill="#D97706">PK </tspan>id : BIGINT (1, 2, 3)</text>
+    <text x="12" y="72" font-size="12" fill="#1F2937">name : VARCHAR(100)</text>
+    <text x="12" y="92" font-size="12" fill="#4B5563">address : VARCHAR(255)</text>
+    <text x="12" y="112" font-size="12" fill="#2563EB">latitude, longitude (经纬度)</text>
+    <text x="12" y="132" font-size="12" fill="#4B5563">total_drone_bays : INT</text>
+    <text x="12" y="152" font-size="12" fill="#4B5563">total_robot_bays : INT</text>
+  </g>
+
+  <!-- ORDERS Table -->
+  <g transform="translate(330, 80)" filter="url(#shadow)">
+    <rect width="250" height="400" rx="8" fill="#FFFFFF" stroke="#8B5CF6" stroke-width="2"/>
+    <path d="M 0 0 h 250 v 34 h -240 z" fill="#F5F3FF" rx="8"/>
+    <text x="12" y="22" font-size="14" font-weight="bold" fill="#6D28D9">orders (核心配送订单表)</text>
+    <text x="12" y="52" font-size="12" fill="#1F2937"><tspan font-weight="bold" fill="#D97706">PK </tspan>id : BIGINT</text>
+    <text x="12" y="72" font-size="12" fill="#1F2937"><tspan fill="#059669">UK </tspan>order_number : VARCHAR(64)</text>
+    <text x="12" y="92" font-size="12" fill="#2563EB"><tspan fill="#DC2626">FK </tspan>user_id -> users.id</text>
+    <text x="12" y="112" font-size="12" fill="#2563EB"><tspan fill="#DC2626">FK </tspan>station_id -> stations.id</text>
+    <text x="12" y="132" font-size="12" fill="#2563EB"><tspan fill="#DC2626">FK </tspan>vehicle_id -> vehicles.id</text>
+    <text x="12" y="152" font-size="12" fill="#4B5563">vehicle_type : DRONE / ROBOT</text>
+    <text x="12" y="172" font-size="12" fill="#D97706">plan_type : FASTEST / BEST_VALUE</text>
+    <text x="12" y="192" font-size="12" fill="#D97706">status : PENDING / PAID / IN_TRANSIT</text>
+    <text x="12" y="212" font-size="12" fill="#4B5563">is_station_pickup : BOOLEAN</text>
+    <text x="12" y="232" font-size="12" fill="#4B5563">pickup_lat, pickup_lng</text>
+    <text x="12" y="252" font-size="12" fill="#4B5563">dropoff_lat, dropoff_lng</text>
+    <text x="12" y="272" font-size="12" fill="#4B5563">package_weight, package_volume</text>
+    <text x="12" y="292" font-size="12" fill="#4B5563">total_distance (km)</text>
+    <text x="12" y="312" font-size="12" fill="#10B981">origin_price, discount_amount</text>
+    <text x="12" y="332" font-size="12" fill="#10B981"><tspan font-weight="bold">final_price</tspan> : DECIMAL</text>
+    <text x="12" y="352" font-size="12" fill="#6B7280">scheduled_start_time</text>
+    <text x="12" y="372" font-size="12" fill="#6B7280">estimated_delivery_time</text>
+    <text x="12" y="392" font-size="12" fill="#6B7280">created_at</text>
+  </g>
+
+  <!-- VEHICLES Table -->
+  <g transform="translate(640, 310)" filter="url(#shadow)">
+    <rect width="230" height="170" rx="8" fill="#FFFFFF" stroke="#F59E0B" stroke-width="2"/>
+    <path d="M 0 0 h 230 v 34 h -230 z" fill="#FEF3C7" rx="8"/>
+    <text x="12" y="22" font-size="14" font-weight="bold" fill="#B45309">vehicles (无人机/机器人)</text>
+    <text x="12" y="52" font-size="12" fill="#1F2937"><tspan font-weight="bold" fill="#D97706">PK </tspan>id : BIGINT</text>
+    <text x="12" y="72" font-size="12" fill="#2563EB"><tspan fill="#DC2626">FK </tspan>station_id -> stations.id</text>
+    <text x="12" y="92" font-size="12" fill="#1F2937"><tspan fill="#059669">UK </tspan>vehicle_code : VARCHAR</text>
+    <text x="12" y="112" font-size="12" fill="#4B5563">vehicle_type : DRONE / ROBOT</text>
+    <text x="12" y="132" font-size="12" fill="#D97706">status : IDLE / BUSY / CHARGING</text>
+    <text x="12" y="152" font-size="12" fill="#10B981">battery_level (0~100%)</text>
+    <text x="12" y="168" font-size="11" fill="#6B7280">max_weight, cruise_speed</text>
+  </g>
+
+  <!-- PAYMENTS Table -->
+  <g transform="translate(640, 80)" filter="url(#shadow)">
+    <rect width="230" height="150" rx="8" fill="#FFFFFF" stroke="#EC4899" stroke-width="2"/>
+    <path d="M 0 0 h 230 v 34 h -230 z" fill="#FDF2F8" rx="8"/>
+    <text x="12" y="22" font-size="14" font-weight="bold" fill="#BE185D">payments (Mock支付流水)</text>
+    <text x="12" y="52" font-size="12" fill="#1F2937"><tspan font-weight="bold" fill="#D97706">PK </tspan>id : BIGINT</text>
+    <text x="12" y="72" font-size="12" fill="#2563EB"><tspan fill="#DC2626">FK </tspan>order_id -> orders.id (1:1)</text>
+    <text x="12" y="92" font-size="12" fill="#2563EB"><tspan fill="#DC2626">FK </tspan>user_id -> users.id</text>
+    <text x="12" y="112" font-size="12" fill="#1F2937"><tspan fill="#059669">UK </tspan>transaction_no : VARCHAR</text>
+    <text x="12" y="132" font-size="12" fill="#10B981">amount : DECIMAL</text>
+    <text x="12" y="146" font-size="11" fill="#4B5563">status : SUCCESS / FAILED</text>
+  </g>
+
+  <!-- TRACKING_EVENTS Table -->
+  <g transform="translate(640, 240)" filter="url(#shadow)">
+    <rect width="230" height="60" rx="6" fill="#FFFFFF" stroke="#6366F1" stroke-width="1.5"/>
+    <text x="10" y="20" font-size="12" font-weight="bold" fill="#4338CA">tracking_events (轨迹审计)</text>
+    <text x="10" y="38" font-size="11" fill="#4B5563"><tspan fill="#DC2626">FK </tspan>order_id, stage, event_lat/lng</text>
+    <text x="10" y="52" font-size="10" fill="#6B7280">status_description, event_time</text>
+  </g>
+
+  <!-- Connectors -->
+  <!-- users -> orders -->
+  <path d="M 270 140 L 330 140" fill="none" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="282" y="132" font-size="11" fill="#6B7280">1 : N</text>
+
+  <!-- orders -> payments -->
+  <path d="M 580 140 L 640 140" fill="none" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="592" y="132" font-size="11" fill="#6B7280">1 : 1</text>
+
+  <!-- orders -> tracking_events -->
+  <path d="M 580 260 L 640 260" fill="none" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="592" y="252" font-size="11" fill="#6B7280">1 : N</text>
+
+  <!-- stations -> orders -->
+  <path d="M 270 380 L 330 380" fill="none" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="282" y="372" font-size="11" fill="#6B7280">1 : N</text>
+
+  <!-- stations -> vehicles -->
+  <path d="M 150 480 L 150 500 L 755 500 L 755 480" fill="none" stroke="#4B5563" stroke-width="1.5" stroke-dasharray="4" marker-end="url(#arrow)"/>
+  <text x="440" y="514" font-size="11" fill="#6B7280">stations 拥有多辆 vehicles (1 : N)</text>
+
+  <!-- vehicles -> orders -->
+  <path d="M 640 400 L 580 400" fill="none" stroke="#4B5563" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="592" y="392" font-size="11" fill="#6B7280">1 : N</text>
+</svg>
