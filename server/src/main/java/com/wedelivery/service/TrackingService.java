@@ -42,14 +42,14 @@ public class TrackingService {
 
     @Transactional
     public TrackingResponse trackOrder(String orderNumber) {
-        Order order = orderRepository.findByOrderNumber(orderNumber)
+        Order order = orderRepository.findByOrderNumberForUpdate(orderNumber)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderNumber));
         return track(order);
     }
 
     @Transactional
     public TrackingResponse trackByTrackingCode(String trackingCode) {
-        Order order = orderRepository.findByTrackingCode(trackingCode)
+        Order order = orderRepository.findByTrackingCodeForUpdate(trackingCode)
                 .orElseThrow(() -> new ResourceNotFoundException("Tracking code not found: " + trackingCode));
         return track(order);
     }
@@ -128,7 +128,8 @@ public class TrackingService {
         } else if (overallRatio < 1.00) {
             currentStage = TrackingStage.RETURNING;
             stageDesc = "Package delivered! Vehicle is returning to the station's charging bay";
-            newOrderStatus = OrderStatus.DELIVERED;
+            // Only the customer's confirm-receipt marks an order DELIVERED; until then it stays IN_TRANSIT.
+            newOrderStatus = OrderStatus.IN_TRANSIT;
             double t = (overallRatio - 0.75) / 0.25;
             double[] point = routeService.pointAlongRoute(legReturning, t);
             currentLat = coordinate(point, 0, dLat);
@@ -136,7 +137,7 @@ public class TrackingService {
         } else {
             currentStage = TrackingStage.COMPLETED;
             stageDesc = "Delivery lifecycle complete, vehicle docked and charging.";
-            newOrderStatus = OrderStatus.DELIVERED;
+            newOrderStatus = OrderStatus.IN_TRANSIT;
             currentLat = sLat;
             currentLng = sLng;
 
@@ -147,7 +148,7 @@ public class TrackingService {
 
         // 同步机器实时信息：位置与速度随航段推进，返站后归位并按电量进入待命/充电。
         // 本方法即「机器实时信息 → 实时追踪系统」的接入口，追踪侧不必再自行推算载具坐标。
-        if (vehicle != null) {
+        if (vehicle != null && ownsVehicle(order, vehicle)) {
             boolean backAtStation = currentStage == TrackingStage.COMPLETED;
 
             // 行程实际耗电：按本次位移的直线里程 × 类型能耗率 × 载重加权，逐段累扣。
@@ -237,6 +238,19 @@ public class TrackingService {
                 .etaMinutesRemaining(etaMinutesRemaining)
                 .events(eventDtos)
                 .build();
+    }
+
+    /**
+     * Whether this order may still write to its vehicle. A DELIVERED order is finished (confirm-receipt
+     * hands the vehicle back to the simulator), and once a newer order has been assigned the same
+     * vehicle, viewing the old order must not drag that vehicle back to the old route or station.
+     */
+    private boolean ownsVehicle(Order order, Vehicle vehicle) {
+        if (order.getStatus() == OrderStatus.DELIVERED) {
+            return false;
+        }
+        return !orderRepository.existsByVehicleIdAndIdGreaterThanAndStatusNot(
+                vehicle.getId(), order.getId(), OrderStatus.CANCELLED);
     }
 
     // Walks every stage from TO_PICKUP up to currentStage (inclusive) and records

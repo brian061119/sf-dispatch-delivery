@@ -281,7 +281,8 @@ class OrderCancelApiTest {
                         .content(reviewPayload))
                 .andExpect(status().isConflict());
 
-        // 2. Confirm receipt to transition to DELIVERED
+        // 2. Confirm receipt to transition to DELIVERED (only possible once the package is delivered)
+        markPackageDelivered(orderNumber);
         mvc.perform(patch("/api/orders/" + orderNumber + "/confirm-receipt")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk());
@@ -318,6 +319,7 @@ class OrderCancelApiTest {
         String orderNumber = createOrder(token);
 
         // Confirm delivery receipt
+        markPackageDelivered(orderNumber);
         mvc.perform(patch("/api/orders/" + orderNumber + "/confirm-receipt")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
@@ -365,6 +367,15 @@ class OrderCancelApiTest {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("CANCELLED"));
+    }
+
+    /** Moves the schedule into the past so the package counts as delivered (20-minute trip, 90% elapsed). */
+    private void markPackageDelivered(String orderNumber) {
+        Order order = orderRepository.findByOrderNumber(orderNumber).orElseThrow();
+        java.time.LocalDateTime start = java.time.LocalDateTime.now().minusMinutes(18);
+        order.setScheduledStartTime(start);
+        order.setEstimatedDeliveryTime(start.plusMinutes(20));
+        orderRepository.save(order);
     }
 
     private String createOrder(String token) throws Exception {

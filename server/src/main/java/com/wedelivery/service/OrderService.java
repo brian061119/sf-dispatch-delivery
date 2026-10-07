@@ -268,14 +268,26 @@ public class OrderService {
             throw new IllegalStateException("Cannot confirm receipt for a cancelled order.");
         }
 
+        // Receipt can only be confirmed once the package has reached the drop-off point
+        double progress = tripProgressRatio(order);
+        if (order.getStatus() == OrderStatus.PENDING_PAYMENT || progress < PACKAGE_DELIVERED_RATIO) {
+            throw new IllegalStateException("The package has not been delivered yet. Receipt can only be confirmed after delivery.");
+        }
+
         order.setStatus(OrderStatus.DELIVERED);
         if (order.getActualDeliveryTime() == null) {
             order.setActualDeliveryTime(LocalDateTime.now());
         }
         orderRepository.save(order);
 
-        // Release vehicle back to its resting state: charge at station if not full, otherwise idle
-        if (order.getVehicleId() != null) {
+        // Release the vehicle back to its resting state (charge at station if not full, otherwise idle),
+        // but only once it is docked and still ours. A vehicle that is still driving back is left in
+        // IN_DELIVERY for the simulator to bring home; one already reassigned to a newer order is not touched.
+        boolean vehicleDocked = progress >= 1.0;
+        boolean vehicleReassigned = order.getVehicleId() != null
+                && orderRepository.existsByVehicleIdAndIdGreaterThanAndStatusNot(
+                        order.getVehicleId(), order.getId(), OrderStatus.CANCELLED);
+        if (order.getVehicleId() != null && vehicleDocked && !vehicleReassigned) {
             vehicleRepository.findById(order.getVehicleId()).ifPresent(v -> {
                 if (v.getStatus() == VehicleStatus.IN_DELIVERY) {
                     LocalDateTime now = LocalDateTime.now();
@@ -305,6 +317,19 @@ public class OrderService {
     }
 
     private static final BigDecimal DISPATCH_SERVICE_FEE = new BigDecimal("2.50");
+
+    /** Share of the trip timeline at which the package is handed over (TrackingService: pickup 25% + delivery 50%). */
+    private static final double PACKAGE_DELIVERED_RATIO = 0.75;
+
+    /** Elapsed share of the scheduled trip, 0 when the schedule is missing or not started yet. */
+    private double tripProgressRatio(Order order) {
+        if (order.getScheduledStartTime() == null || order.getEstimatedDeliveryTime() == null) {
+            return 0.0;
+        }
+        long totalSeconds = Math.max(60, Duration.between(order.getScheduledStartTime(), order.getEstimatedDeliveryTime()).getSeconds());
+        long elapsedSeconds = Math.max(0, Duration.between(order.getScheduledStartTime(), LocalDateTime.now()).getSeconds());
+        return (double) elapsedSeconds / totalSeconds;
+    }
 
     /**
      * Cancel order business closure:
