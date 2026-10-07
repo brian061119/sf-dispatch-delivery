@@ -65,11 +65,13 @@ class TrackingServiceTest {
                 orderRepository, stationRepository, vehicleRepository, trackingEventRepository, routeService);
     }
 
-    // Builds an order whose scheduled window puts overallRatio at ~0.8, i.e.
-    // squarely inside the RETURNING bucket (0.75 ~ 1.00), well past the
-    // TO_PICKUP and TO_DROPOFF windows it already lived through unpolled.
+    // Builds an order whose scheduled window puts the poll ~10 min past the
+    // package delivery moment (estimatedDeliveryTime = start + 25 min) but
+    // before the proportional return leg finishes (~50 min for these coords),
+    // i.e. squarely inside the RETURNING bucket, well past the TO_PICKUP and
+    // TO_DROPOFF windows it already lived through unpolled.
     private Order buildLateOrder() {
-        LocalDateTime start = LocalDateTime.now().minusMinutes(20);
+        LocalDateTime start = LocalDateTime.now().minusMinutes(35);
         LocalDateTime delivery = start.plusMinutes(25);
         return Order.builder()
                 .id(ORDER_ID)

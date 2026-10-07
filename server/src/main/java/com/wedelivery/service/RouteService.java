@@ -35,6 +35,35 @@ public interface RouteService {
     int estimateTravelTimeMinutes(double distanceKm, double cruiseSpeedKmH);
 
     /**
+     * 三段航程（站→取件→送达→返站）按里程等比换算出的两个里程碑占比：
+     * 返回 double[2]：
+     *   [0] 取件完成占比 = 站→取件 / 整程（包裹上车的时间点）
+     *   [1] 包裹送达占比 = (站→取件 + 取件→送达) / 整程（客户视角的「送达时刻」）
+     * 整程时间线（含返站段）据此切分，各航段车辆匀速推进。
+     *
+     * <p>这里只做几何，<b>不做任何业务兜底</b>：顾客自投（取件点即站点）时首段为 0、
+     * 占比返回 0 是真实情况；「占比为 0 时还能不能取消」属于取消政策，
+     * 由 OrderService 的时间阈值决定，不在这里伪造里程。
+     * 只有三段全为 0（坐标完全重合）时无法计算，退回旧的固定权重 0.25 / 0.75。
+     */
+    default double[] milestoneFractions(BigDecimal stationLat, BigDecimal stationLng,
+                                        BigDecimal pickupLat, BigDecimal pickupLng,
+                                        BigDecimal dropoffLat, BigDecimal dropoffLng,
+                                        VehicleType vehicleType) {
+        double legToPickup = calculateSegmentDistance(stationLat.doubleValue(), stationLng.doubleValue(),
+                pickupLat.doubleValue(), pickupLng.doubleValue(), vehicleType);
+        double legToDropoff = calculateSegmentDistance(pickupLat.doubleValue(), pickupLng.doubleValue(),
+                dropoffLat.doubleValue(), dropoffLng.doubleValue(), vehicleType);
+        double legReturning = calculateSegmentDistance(dropoffLat.doubleValue(), dropoffLng.doubleValue(),
+                stationLat.doubleValue(), stationLng.doubleValue(), vehicleType);
+        double total = legToPickup + legToDropoff + legReturning;
+        if (total <= 0) {
+            return new double[]{0.25, 0.75};
+        }
+        return new double[]{legToPickup / total, (legToPickup + legToDropoff) / total};
+    }
+
+    /**
      * 返回一段行程的沿道路几何折线，每个元素为 {lat, lng}。
      *
      * <p>默认实现（纯直线方案）只返回起终两点，画出来就是一条穿楼的直线。

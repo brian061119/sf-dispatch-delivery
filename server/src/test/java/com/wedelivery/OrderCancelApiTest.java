@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -140,6 +141,53 @@ class OrderCancelApiTest {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("The package has already been picked up and is in transit. Cancellation is not allowed."));
+    }
+
+    /**
+     * 站点自投 / 取件点落在站点坐标上时，「站→取件」首段里程为 0。
+     * 按占比推算的取件时刻就是派单那一刻，但真实产品（Uber / Lyft 的派单后免费取消窗口、
+     * Amazon 发货前可撤单、顺丰站点自寄在揽收前可撤单）都不会让订单"一下单就不可取消"。
+     * 因此取消/改单受 OrderService 的时间窗口保护，与航段占比解耦。
+     */
+    @Test
+    @DisplayName("Station pick-up (zero outbound leg) is still cancellable within the post-booking grace window")
+    void stationPickupIsStillCancellableWithinGraceWindow() throws Exception {
+        String token = login("normal_user", "password123");
+        String orderNumber = createOrder(token);
+
+        Order order = orderRepository.findByOrderNumber(orderNumber).orElseThrow();
+        order.setIsStationPickup(true);
+        orderRepository.save(order);
+        assertThat(elapsedSinceStart(order)).isLessThan(PICKUP_GRACE_SECONDS);
+
+        mvc.perform(patch("/api/orders/" + orderNumber + "/cancel")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
+    }
+
+    @Test
+    @DisplayName("Once the grace window passes, even a zero outbound leg counts as picked up -> 409 Conflict")
+    void stationPickupIsLockedOnceGraceWindowElapsed() throws Exception {
+        String token = login("normal_user", "password123");
+        String orderNumber = createOrder(token);
+
+        Order order = orderRepository.findByOrderNumber(orderNumber).orElseThrow();
+        order.setIsStationPickup(true);
+        // Rewind the dispatch clock past the grace window without touching any status.
+        order.setScheduledStartTime(LocalDateTime.now().minusSeconds(PICKUP_GRACE_SECONDS + 60));
+        orderRepository.save(order);
+
+        mvc.perform(patch("/api/orders/" + orderNumber + "/cancel")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("The package has already been picked up and is in transit. Cancellation is not allowed."));
+    }
+
+    private static long PICKUP_GRACE_SECONDS = 120; // 与 OrderService.PICKUP_CANCELLATION_GRACE_SECONDS 保持一致
+
+    private long elapsedSinceStart(Order order) {
+        return java.time.Duration.between(order.getScheduledStartTime(), LocalDateTime.now()).getSeconds();
     }
 
     @Test

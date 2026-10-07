@@ -111,6 +111,7 @@ public class Order {
     @Column(name = "scheduled_start_time", nullable = false)
     private LocalDateTime scheduledStartTime;
 
+    /** 包裹送达时刻（客户视角，仅含「站→取件→送达」两段，不含返站段） */
     @Column(name = "estimated_delivery_time", nullable = false)
     private LocalDateTime estimatedDeliveryTime;
 

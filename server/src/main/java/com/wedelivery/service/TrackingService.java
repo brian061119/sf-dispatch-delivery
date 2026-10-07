@@ -69,17 +69,6 @@ public class TrackingService {
             return buildStaticResponse(order, station, vehicleCode);
         }
 
-        // Compute elapsed-time progress ratio
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime startTime = order.getScheduledStartTime();
-        LocalDateTime deliveryTime = order.getEstimatedDeliveryTime();
-
-        // Total trip duration, floored at 60s to guard against divide-by-zero
-        long totalSeconds = Math.max(60, Duration.between(startTime, deliveryTime).getSeconds());
-        long elapsedSeconds = Math.max(0, Duration.between(startTime, now).getSeconds());
-
-        double overallRatio = Math.min(1.0, (double) elapsedSeconds / totalSeconds);
-
         // Define waypoint coordinates
         BigDecimal sLat = station.getLatitude();
         BigDecimal sLng = station.getLongitude();
@@ -87,6 +76,28 @@ public class TrackingService {
         BigDecimal pLng = Boolean.TRUE.equals(order.getIsStationPickup()) ? sLng : order.getPickupLng();
         BigDecimal dLat = order.getDropoffLat();
         BigDecimal dLng = order.getDropoffLng();
+
+        // Compute elapsed-time progress ratio against the full closed loop.
+        // estimatedDeliveryTime is the customer-facing moment the package
+        // reaches the dropoff (see RecommendationService); the return leg is
+        // appended proportionally (by per-leg distance) so the vehicle keeps
+        // animating a complete station->pickup->dropoff->station loop.
+        double[] milestones = routeService.milestoneFractions(
+                sLat, sLng, pLat, pLng, dLat, dLng, order.getVehicleType());
+        double pickupFraction = milestones[0];
+        double deliveryFraction = milestones[1];
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime startTime = order.getScheduledStartTime();
+        LocalDateTime deliveryTime = order.getEstimatedDeliveryTime();
+
+        long deliverySeconds = Math.max(60, Duration.between(startTime, deliveryTime).getSeconds());
+        long totalSeconds = Math.max(deliverySeconds, Math.round(deliverySeconds / deliveryFraction));
+        long elapsedSeconds = Math.max(0, Duration.between(startTime, now).getSeconds());
+
+        double overallRatio = Math.min(1.0, (double) elapsedSeconds / totalSeconds);
+        // 包裹实际送达时刻：时间线上「站→取件→送达」走完的那一瞬间
+        LocalDateTime deliveryMoment = startTime.plusSeconds(deliverySeconds);
 
         // 三段航程的沿道路几何折线（接入 OSRM 后机器人沿街道行驶，不再直线穿楼；
         // 无人机按 VehicleType 走直线，离线/失败时自动退化为两点直线）。
@@ -104,24 +115,26 @@ public class TrackingService {
         BigDecimal currentLng;
         OrderStatus newOrderStatus = order.getStatus();
 
-        // Split the trip into 3 weighted legs:
-        // 0.0 ~ 0.25: Station -> Pickup (TO_PICKUP)
-        // 0.25 ~ 0.75: Pickup -> Dropoff (TO_DROPOFF)
-        // 0.75 ~ 1.00: Dropoff -> Station (RETURNING)
+        // Split the trip by distance-proportional milestones of the full loop:
+        // 0.0 ~ pickupFraction  : Station -> Pickup (TO_PICKUP)
+        // pickupFraction ~ deliveryFraction : Pickup -> Dropoff (TO_DROPOFF)
+        // deliveryFraction ~ 1.00 : Dropoff -> Station (RETURNING)
         // >= 1.00: COMPLETED
-        if (overallRatio < 0.25) {
+        // 顾客自投等情形下首段占比可为 0，该阶段宽度为 0 会被直接跳过（分支永不进入），
+        // 因此下面的插值分母均不会为 0，无需额外兜底。
+        if (overallRatio < pickupFraction) {
             currentStage = TrackingStage.TO_PICKUP;
             stageDesc = "Vehicle is en route to the pickup location";
             newOrderStatus = OrderStatus.PICKING_UP;
-            double t = overallRatio / 0.25;
+            double t = overallRatio / pickupFraction;
             double[] point = routeService.pointAlongRoute(legToPickup, t);
             currentLat = coordinate(point, 0, sLat);
             currentLng = coordinate(point, 1, sLng);
-        } else if (overallRatio < 0.75) {
+        } else if (overallRatio < deliveryFraction) {
             currentStage = TrackingStage.TO_DROPOFF;
             stageDesc = "Package picked up successfully, speeding to the destination";
             newOrderStatus = OrderStatus.IN_TRANSIT;
-            double t = (overallRatio - 0.25) / 0.50;
+            double t = (overallRatio - pickupFraction) / (deliveryFraction - pickupFraction);
             double[] point = routeService.pointAlongRoute(legToDropoff, t);
             currentLat = coordinate(point, 0, pLat);
             currentLng = coordinate(point, 1, pLng);
@@ -129,7 +142,7 @@ public class TrackingService {
             currentStage = TrackingStage.RETURNING;
             stageDesc = "Package delivered! Vehicle is returning to the station's charging bay";
             newOrderStatus = OrderStatus.DELIVERED;
-            double t = (overallRatio - 0.75) / 0.25;
+            double t = (overallRatio - deliveryFraction) / (1.0 - deliveryFraction);
             double[] point = routeService.pointAlongRoute(legReturning, t);
             currentLat = coordinate(point, 0, dLat);
             currentLng = coordinate(point, 1, dLng);
@@ -139,10 +152,12 @@ public class TrackingService {
             newOrderStatus = OrderStatus.DELIVERED;
             currentLat = sLat;
             currentLng = sLng;
+        }
 
-            if (order.getActualDeliveryTime() == null) {
-                order.setActualDeliveryTime(now);
-            }
+        // 签收时刻在进入 RETURNING（客户确认收货）时即告确定，按时间线精确回填；
+        // 不再等到车辆返站（COMPLETED）才记录，那会把送达时间推迟一整段返程。
+        if (currentStage.ordinal() >= TrackingStage.RETURNING.ordinal() && order.getActualDeliveryTime() == null) {
+            order.setActualDeliveryTime(deliveryMoment.isAfter(now) ? now : deliveryMoment);
         }
 
         // 同步机器实时信息：位置与速度随航段推进，返站后归位并按电量进入待命/充电。
@@ -203,7 +218,9 @@ public class TrackingService {
             orderRepository.save(order);
         }
 
-        long remainingSec = Math.max(0, totalSeconds - elapsedSeconds);
+        // 剩余等待时间以「包裹送达」为终点（客户视角），不含返站段；
+        // 已送达/取消的订单由 Controller 输出 null。
+        long remainingSec = Math.max(0, deliverySeconds - elapsedSeconds);
         int etaMinutesRemaining = (int) Math.ceil((double) remainingSec / 60.0);
         BigDecimal progressPercent = BigDecimal.valueOf(overallRatio * 100).setScale(1, RoundingMode.HALF_UP);
 

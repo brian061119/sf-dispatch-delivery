@@ -109,4 +109,45 @@ class RouteServiceTest {
 
         assertEquals(expected, droneDistance, 1e-6);
     }
+
+    /**
+     * 里程碑占比必须与三段航程的里程等比：站→取件最短、取件→送达最长时，
+     * pickupFraction 应明显小于 deliveryFraction，且 deliveryFraction 接近
+     * 「前两段之和 / 整程」的真实比例。
+     */
+    @Test
+    void milestoneFractionsAreProportionalToLegDistances() {
+        // S(37.7900,-122.4000) -> P(37.7800,-122.4100) -> D(37.7600,-122.4300)，各段等比放大
+        double[] f = straightLine.milestoneFractions(
+                new java.math.BigDecimal("37.7900"), new java.math.BigDecimal("-122.4000"),
+                new java.math.BigDecimal("37.7800"), new java.math.BigDecimal("-122.4100"),
+                new java.math.BigDecimal("37.7600"), new java.math.BigDecimal("-122.4300"),
+                VehicleType.ROBOT);
+
+        double leg1 = straightLine.calculateSegmentDistance(37.79, -122.40, 37.78, -122.41, VehicleType.ROBOT);
+        double leg2 = straightLine.calculateSegmentDistance(37.78, -122.41, 37.76, -122.43, VehicleType.ROBOT);
+        double leg3 = straightLine.calculateSegmentDistance(37.76, -122.43, 37.79, -122.40, VehicleType.ROBOT);
+
+        assertEquals(leg1 / (leg1 + leg2 + leg3), f[0], 1e-9, "取件完成占比 = 第一段 / 整程");
+        assertEquals((leg1 + leg2) / (leg1 + leg2 + leg3), f[1], 1e-9, "送达占比 = 前两段 / 整程");
+        assertTrue(0 < f[0] && f[0] < f[1] && f[1] < 1.0);
+    }
+
+    /**
+     * 几何必须诚实：顾客自投（取件点即站点）时首段里程就是 0，占比返回 0 才是正确答案。
+     * 曾经为了「让取消还能用」在这里伪造 0.5km，结果把取消政策塞进了路由函数——
+     * 现在伪造已移除，零首段由 OrderService 的时间窗口负责兜底（见
+     * OrderService.PICKUP_CANCELLATION_GRACE_SECONDS）。
+     */
+    @Test
+    void milestoneFractionsReportTrueZeroWhenPickupIsAtStation() {
+        double[] f = straightLine.milestoneFractions(
+                new java.math.BigDecimal("37.7891720"), new java.math.BigDecimal("-122.3970420"),
+                new java.math.BigDecimal("37.7891720"), new java.math.BigDecimal("-122.3970420"),
+                new java.math.BigDecimal("37.7596000"), new java.math.BigDecimal("-122.4269000"),
+                VehicleType.ROBOT);
+
+        assertEquals(0.0, f[0], 1e-12, "取件点即站点时首段占比必须为真实的 0，不得伪造里程");
+        assertTrue(f[1] > 0 && f[1] < 1.0, "送达占比仍应落在 (0,1) 内 (f1=" + f[1] + ")");
+    }
 }

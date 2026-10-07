@@ -52,6 +52,24 @@ public class OrderService {
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     /**
+     * 下单后的最短可取消 / 可改单宽限窗口（秒）。
+     *
+     * <p>为什么需要一个时间下限：顾客自投（取件点就是站点，见 isStationPickup）或
+     * 取件点恰好订在站点坐标上时，「站→取件」航段为 0，按比例算出的取件时刻就是
+     * 派单那一刻。若直接据此判定"已取件"，结果是<b>下单成功即不可取消</b>——这在
+     * 任何真实产品里都不存在：
+     * <ul>
+     *   <li>Uber / Lyft / Waymo：派单后仍有免费取消窗口（Uber 约 2 分钟），且始终可取消到司机(车)到达为止；</li>
+     *   <li>Amazon：发货前可整单取消，并在下单后保留一段"后悔"窗口；</li>
+     *   <li>顺丰 / WeDelivery 式站点自寄：包裹被揽收前均可撤单，系统会给一个固定期限。</li>
+     * </ul>
+     * 因此这里统一取「按比例推算的取件时刻」与「下单后 grace 秒」中较晚的一个：
+     * 正常上门取件的订单不受影响（那一班车开到取件点通常远大于 2 分钟），
+     * 只有首段为 0 的订单才退化到这个窗口。
+     */
+    private static final long PICKUP_CANCELLATION_GRACE_SECONDS = 120;
+
+    /**
      * Core contract order creation:
      * 1. Dynamically recalculate plan (server-side price validation to prevent tampering)
      * 2. Atomically lock vehicle via pessimistic lock
@@ -312,7 +330,7 @@ public class OrderService {
      * 2. Validate current order status:
      *    - If already CANCELLED: return immediately (idempotent)
      *    - If DELIVERED: throw IllegalStateException (cannot cancel delivered order)
-     *    - If package already picked up (IN_TRANSIT or progress ratio >= 0.25): throw IllegalStateException (cannot cancel after pickup!)
+     *    - If package already picked up (IN_TRANSIT or past the pickup milestone on the tracking timeline): throw IllegalStateException (cannot cancel after pickup!)
      * 3. Apply refund & dispatch fee policy:
      *    - Before dispatch / waiting for vehicle (PAID, PENDING_PAYMENT): 100% full refund, $0 fee
      *    - En route to pickup (PICKING_UP or dispatched): deduct dispatch service fee ($2.50) and refund remainder
@@ -338,16 +356,7 @@ public class OrderService {
         }
 
         // Core validation: Cannot cancel order if package has already been picked up (in transit)
-        boolean packagePickedUp = (order.getStatus() == OrderStatus.IN_TRANSIT);
-        if (!packagePickedUp && order.getScheduledStartTime() != null && order.getEstimatedDeliveryTime() != null) {
-            LocalDateTime now = LocalDateTime.now();
-            long totalSeconds = Math.max(60, Duration.between(order.getScheduledStartTime(), order.getEstimatedDeliveryTime()).getSeconds());
-            long elapsedSeconds = Math.max(0, Duration.between(order.getScheduledStartTime(), now).getSeconds());
-            double ratio = (double) elapsedSeconds / totalSeconds;
-            if (ratio >= 0.25) {
-                packagePickedUp = true;
-            }
-        }
+        boolean packagePickedUp = packagePickedUpByTimeline(order);
 
         if (packagePickedUp) {
             throw new IllegalStateException("The package has already been picked up and is in transit. Cancellation is not allowed.");
@@ -523,16 +532,7 @@ public class OrderService {
         }
 
         // Core validation: Cannot modify order after package has already been picked up (in transit)
-        boolean packagePickedUp = (order.getStatus() == OrderStatus.IN_TRANSIT);
-        if (!packagePickedUp && order.getScheduledStartTime() != null && order.getEstimatedDeliveryTime() != null) {
-            LocalDateTime now = LocalDateTime.now();
-            long totalSeconds = Math.max(60, Duration.between(order.getScheduledStartTime(), order.getEstimatedDeliveryTime()).getSeconds());
-            long elapsedSeconds = Math.max(0, Duration.between(order.getScheduledStartTime(), now).getSeconds());
-            double ratio = (double) elapsedSeconds / totalSeconds;
-            if (ratio >= 0.25) {
-                packagePickedUp = true;
-            }
-        }
+        boolean packagePickedUp = packagePickedUpByTimeline(order);
 
         if (packagePickedUp) {
             throw new IllegalStateException("Package has already been picked up and is in transit. Order can only be modified before pickup starts.");
@@ -910,6 +910,40 @@ public class OrderService {
 
     public List<Order> getUserOrders(Long userId) {
         return orderRepository.findByUserIdOrderByCreatedAtDesc(userId);
+    }
+
+    /**
+     * 时间线判定包裹是否已被取件：与追踪时间线（TrackingService）同源——
+     * 按「站→取件→送达→返站」里程等比占比切分，过了取件里程碑才禁止取消/改单。
+     * estimatedDeliveryTime 语义为包裹送达时刻，返站段按占比补足成整程后判定。
+     *
+     * <p>取件里程碑同时受 {@link #PICKUP_CANCELLATION_GRACE_SECONDS} 保护：
+     * 自投类订单（首段里程为 0）不会被立刻判成「已取件」。
+     */
+    private boolean packagePickedUpByTimeline(Order order) {
+        if (order.getStatus() == OrderStatus.IN_TRANSIT) {
+            return true;
+        }
+        if (order.getScheduledStartTime() == null || order.getEstimatedDeliveryTime() == null) {
+            return false;
+        }
+        Station station = stationRepository.findById(order.getStationId()).orElse(null);
+        if (station == null) {
+            return false;
+        }
+        BigDecimal sLat = station.getLatitude();
+        BigDecimal sLng = station.getLongitude();
+        BigDecimal pLat = Boolean.TRUE.equals(order.getIsStationPickup()) ? sLat : order.getPickupLat();
+        BigDecimal pLng = Boolean.TRUE.equals(order.getIsStationPickup()) ? sLng : order.getPickupLng();
+        double[] milestones = routeService.milestoneFractions(
+                sLat, sLng, pLat, pLng, order.getDropoffLat(), order.getDropoffLng(), order.getVehicleType());
+        long deliverySeconds = Math.max(60, Duration.between(
+                order.getScheduledStartTime(), order.getEstimatedDeliveryTime()).getSeconds());
+        long loopSeconds = Math.max(deliverySeconds, Math.round(deliverySeconds / milestones[1]));
+        long pickupSeconds = Math.round(loopSeconds * (double) milestones[0]);
+        long elapsedSeconds = Math.max(0, Duration.between(
+                order.getScheduledStartTime(), LocalDateTime.now()).getSeconds());
+        return elapsedSeconds >= Math.max(pickupSeconds, PICKUP_CANCELLATION_GRACE_SECONDS);
     }
 
     private String generateTrackingCode() {

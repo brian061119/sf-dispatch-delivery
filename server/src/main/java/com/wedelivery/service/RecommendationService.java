@@ -286,7 +286,15 @@ public class RecommendationService {
         BigDecimal finalPrice = originPrice.subtract(discount);
 
         double speed = candidate.planned.getCruiseSpeed().doubleValue();
-        int minutes = routeService.estimateTravelTimeMinutes(closedDistance.doubleValue() * 0.65, speed);
+        // 客户视角的 ETA 只算「站→取件→送达」两段；返站段不属于顾客等待时间，
+        // 但仍计入闭环里程（续航/电量准入与计价不受影响，见 calculateClosedLoopDistance）。
+        double deliveryDistanceKm = routeService.calculateSegmentDistance(
+                station.getLatitude().doubleValue(), station.getLongitude().doubleValue(),
+                req.getPickupLat().doubleValue(), req.getPickupLng().doubleValue(), type)
+                + routeService.calculateSegmentDistance(
+                req.getPickupLat().doubleValue(), req.getPickupLng().doubleValue(),
+                req.getDropoffLat().doubleValue(), req.getDropoffLng().doubleValue(), type);
+        int minutes = routeService.estimateTravelTimeMinutes(deliveryDistanceKm * 0.65, speed);
         LocalDateTime now = LocalDateTime.now();
 
         return PlanOptionDto.builder()
