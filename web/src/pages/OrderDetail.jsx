@@ -1,12 +1,13 @@
 import { useEffect, useState, useRef } from "react";
 import { Alert, Button, Card, Col, Descriptions, Form, Input, InputNumber, Modal, Popconfirm, Radio, Rate, Row, Spin, Switch, Tag, Tooltip, Typography } from "antd";
-import { EditOutlined, ThunderboltOutlined, CarOutlined } from "@ant-design/icons";
+import { EditOutlined, ThunderboltOutlined, CarOutlined, CrownOutlined } from "@ant-design/icons";
 import { Link, useParams } from "react-router-dom";
 import { cancelOrder, confirmReceipt, getOrder, getOrderReview, submitReview, updateOrder } from "../api/order";
 import { getRecommendations } from "../api/recommendation";
 import { normalizeStatus } from "../api/tracking";
 import { geocode, isWithinSanFrancisco } from "../lib/geocode";
 import { StatusBadge } from "../components/StatusBadge";
+import { useAuth } from "../store/auth";
 import { apiErrorMessage } from "../lib/http";
 
 const { Title, Text } = Typography;
@@ -23,12 +24,17 @@ const toView = (raw) => ({
   package: raw.package ?? (raw.packageWeight != null ? { weightKg: raw.packageWeight, volumeM3: raw.packageVolume } : undefined),
   candidate: raw.candidate ?? (raw.vehicleType ? { vehicleType: raw.vehicleType } : {}),
   estimatedCost: raw.estimatedCost ?? raw.finalPrice,
+  discountAmount: raw.discountAmount,
   vehicleType: raw.vehicleType ?? raw.candidate?.vehicleType,
-  hasBeenModified: raw.hasBeenModified === true || (raw.modifiedCount != null && raw.modifiedCount > 0),
+  hasBeenModified: raw.hasBeenModified === true,
+  modifiedCount: raw.modifiedCount ?? 0,
+  maxModificationsAllowed: raw.maxModificationsAllowed ?? 1,
   droneUpgradeAvailable: raw.droneUpgradeAvailable === true,
 });
 
 export default function OrderDetail() {
+  const { role } = useAuth();
+  const isVip = role === "VIP";
   const { orderId } = useParams();
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -153,24 +159,29 @@ export default function OrderDetail() {
     const vol = (L * W * H) / 1000000;
     setCalcVolumeM3(vol);
 
-    // Immediate physical validation
-    if (pType === "DRONE" && weight > 3.0) {
-      setPricingNotice("⚠️ Package weight exceeds Drone Express limit of 3.0 kg. Please select Ground Robot or reduce weight.");
+    // Immediate physical validation with VIP +10% tolerance
+    const maxDroneW = isVip ? 3.3 : 3.0;
+    const maxDroneV = isVip ? 0.055 : 0.05;
+    const maxRobotW = isVip ? 16.5 : 15.0;
+    const maxRobotV = isVip ? 0.33 : 0.30;
+
+    if (pType === "DRONE" && weight > maxDroneW) {
+      setPricingNotice(`⚠️ Package weight exceeds Drone Express limit of ${maxDroneW} kg${isVip ? " (VIP +10% applied)" : ""}. Please select Ground Robot or reduce weight.`);
       setEstimatedNewPrice(null);
       return;
     }
-    if (pType === "DRONE" && vol > 0.05) {
-      setPricingNotice("⚠️ Package volume exceeds Drone cargo bay limit of 0.05 m³.");
+    if (pType === "DRONE" && vol > maxDroneV) {
+      setPricingNotice(`⚠️ Package volume exceeds Drone cargo bay limit of ${maxDroneV} m³${isVip ? " (VIP +10% applied)" : ""}.`);
       setEstimatedNewPrice(null);
       return;
     }
-    if (pType === "ROBOT" && weight > 15.0) {
-      setPricingNotice("⚠️ Package weight exceeds Ground Robot limit of 15.0 kg.");
+    if (pType === "ROBOT" && weight > maxRobotW) {
+      setPricingNotice(`⚠️ Package weight exceeds Ground Robot limit of ${maxRobotW} kg${isVip ? " (VIP +10% applied)" : ""}.`);
       setEstimatedNewPrice(null);
       return;
     }
-    if (pType === "ROBOT" && vol > 0.30) {
-      setPricingNotice("⚠️ Package volume exceeds Ground Robot cargo bay limit of 0.30 m³.");
+    if (pType === "ROBOT" && vol > maxRobotV) {
+      setPricingNotice(`⚠️ Package volume exceeds Ground Robot cargo bay limit of ${maxRobotV} m³${isVip ? " (VIP +10% applied)" : ""}.`);
       setEstimatedNewPrice(null);
       return;
     }
@@ -248,19 +259,24 @@ export default function OrderDetail() {
       const H = Number(values.packageHeightCm || 10);
       const vol = (L * W * H) / 1000000;
 
+      const maxDroneW = isVip ? 3.3 : 3.0;
+      const maxDroneV = isVip ? 0.055 : 0.05;
+      const maxRobotW = isVip ? 16.5 : 15.0;
+      const maxRobotV = isVip ? 0.33 : 0.30;
+
       if (values.vehicleType === "DRONE") {
-        if (weight > 3.0) {
-          throw new Error("Package weight (" + weight + " kg) exceeds drone maximum capacity of 3.0 kg.");
+        if (weight > maxDroneW) {
+          throw new Error(`Package weight (${weight} kg) exceeds drone maximum capacity of ${maxDroneW} kg${isVip ? " (VIP +10% applied)" : ""}.`);
         }
-        if (vol > 0.05) {
-          throw new Error("Package volume (" + vol.toFixed(4) + " m³) exceeds drone cargo bay limit of 0.05 m³.");
+        if (vol > maxDroneV) {
+          throw new Error(`Package volume (${vol.toFixed(4)} m³) exceeds drone cargo bay limit of ${maxDroneV} m³${isVip ? " (VIP +10% applied)" : ""}.`);
         }
       } else if (values.vehicleType === "ROBOT") {
-        if (weight > 15.0) {
-          throw new Error("Package weight (" + weight + " kg) exceeds robot maximum capacity of 15.0 kg.");
+        if (weight > maxRobotW) {
+          throw new Error(`Package weight (${weight} kg) exceeds robot maximum capacity of ${maxRobotW} kg${isVip ? " (VIP +10% applied)" : ""}.`);
         }
-        if (vol > 0.30) {
-          throw new Error("Package volume (" + vol.toFixed(4) + " m³) exceeds robot cargo bay limit of 0.30 m³.");
+        if (vol > maxRobotV) {
+          throw new Error(`Package volume (${vol.toFixed(4)} m³) exceeds robot cargo bay limit of ${maxRobotV} m³${isVip ? " (VIP +10% applied)" : ""}.`);
         }
       }
 
@@ -323,7 +339,9 @@ export default function OrderDetail() {
   const status = order.status || "PENDING";
   const candidate = order.candidate || {};
   const isRobot = (order.vehicleType === "ROBOT" || candidate.vehicleType === "ROBOT");
-  const canModify = !order.hasBeenModified && (status === "PENDING" || status === "PAID");
+  const maxMods = order.maxModificationsAllowed ?? (isVip ? 2 : 1);
+  const currentMods = order.modifiedCount ?? (order.hasBeenModified ? 1 : 0);
+  const canModify = currentMods < maxMods && (status === "PENDING" || status === "PAID");
   const canShowUpgrade = isRobot && canModify;
   const currentCost = Number(order.estimatedCost ?? 0);
   const priceDiff = estimatedNewPrice != null ? (estimatedNewPrice - currentCost) : 0;
@@ -343,7 +361,13 @@ export default function OrderDetail() {
               disabled={!canModify}
               onClick={openEditModal}
             >
-              {order.hasBeenModified ? "Modified (1/1 limit reached)" : status === "IN_TRANSIT" ? "Cannot modify once in transit" : "Modify order"}
+              {currentMods >= maxMods
+                ? `Modified (${currentMods}/${maxMods} limit reached)`
+                : status === "IN_TRANSIT"
+                ? "Cannot modify once in transit"
+                : isVip
+                ? `Modify order (${currentMods}/${maxMods} 👑)`
+                : "Modify order"}
             </Button>
             {order.trackingCode && <Link to={`/track?code=${encodeURIComponent(order.trackingCode)}`}>Live tracking →</Link>}
           </div>
@@ -404,17 +428,24 @@ export default function OrderDetail() {
               </Descriptions.Item>
             </Descriptions>
             <Title level={2} style={{ marginTop: 12 }}>${Number(order.estimatedCost ?? 0).toFixed(2)}</Title>
+            {order.discountAmount != null && Number(order.discountAmount) > 0 && (
+              <Tag color="gold" icon={<CrownOutlined />} style={{ marginBottom: 10, fontSize: 13, padding: "2px 8px" }}>
+                VIP Discount: -${Number(order.discountAmount).toFixed(2)} (10% Off)
+              </Tag>
+            )}
 
             {canShowUpgrade && (
               order.droneUpgradeAvailable ? (
                 <div style={{ marginTop: 14, padding: "10px 14px", background: "#f0f5ff", borderRadius: 8, border: "1px solid #adc6ff" }}>
                   <Text strong style={{ color: "#1d39c4" }}>⚡ In a rush? Upgrade to Drone Express</Text>
                   <br />
-                  <Text type="secondary" style={{ fontSize: 12 }}>Expedited aerial delivery. Surcharge automatically calculated. (Only 1 modification permitted per order)</Text>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    Expedited aerial delivery. Surcharge automatically calculated. {isVip ? "(VIP 10% discount applies)" : `(${currentMods}/${maxMods} modification limit)`}
+                  </Text>
                   <div style={{ marginTop: 8 }}>
                     <Popconfirm
                       title="Upgrade to Drone Express?"
-                      description="This will dispatch a high-speed drone. Any price difference will be charged. (1/1 modification limit)"
+                      description={`This will dispatch a high-speed drone. Any price difference will be charged. (${currentMods}/${maxMods} modifications limit)`}
                       okText="Upgrade now"
                       onConfirm={doUpgradeToDrone}
                     >
@@ -424,11 +455,17 @@ export default function OrderDetail() {
                 </div>
               ) : (
                 <div style={{ marginTop: 14, padding: "8px 12px", background: "#fafafa", borderRadius: 8, border: "1px dashed #d9d9d9" }}>
-                  <Text type="secondary" style={{ fontSize: 12 }}>⚡ Drone Express upgrade is currently unavailable (no idle drones with sufficient battery or weight exceeds 3kg).</Text>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    ⚡ Drone Express upgrade is currently unavailable (no idle drones with sufficient battery or weight exceeds {isVip ? "3.3kg" : "3.0kg"}).
+                  </Text>
                 </div>
               )
             )}
-            {order.hasBeenModified && <Text type="secondary" style={{ fontSize: 12, display: "block", marginTop: 8 }}>ℹ️ Order has been modified (1/1 limit reached).</Text>}
+            {currentMods >= maxMods && (
+              <Text type="secondary" style={{ fontSize: 12, display: "block", marginTop: 8 }}>
+                ℹ️ Order has been modified ({currentMods}/${maxMods} limit reached).
+              </Text>
+            )}
           </Card>
         </Col>
 
@@ -452,18 +489,28 @@ export default function OrderDetail() {
         {/* Cancel order card */}
         <Col xs={24} lg={12}>
           <Card title="Cancel order" style={cardStyle}>
-            <Text type="secondary">Orders can be cancelled before the package is picked up. Once picked up and in transit, cancellation is not allowed. Cancelling before vehicle dispatch is 100% free; cancelling while en route to pickup incurs a $2.50 dispatch service fee.</Text>
+            <Text type="secondary">
+              {isVip
+                ? "VIP Privilege: Orders can be cancelled before package pickup with 100% full refund. As a VIP member, the $2.50 dispatch service fee is completely waived for you!"
+                : "Orders can be cancelled before the package is picked up. Once picked up and in transit, cancellation is not allowed. Cancelling before vehicle dispatch is 100% free; cancelling while en route to pickup incurs a $2.50 dispatch service fee."}
+            </Text>
             <br />
             <Popconfirm
               title="Cancel this order?"
-              description="This cannot be undone."
+              description={
+                isVip
+                  ? "VIP Privilege: As a VIP member, your $2.50 dispatch service fee is waived. You will receive a 100% full refund. Confirm cancellation?"
+                  : (status === "PICKING_UP"
+                    ? "Vehicle is already en route to pickup. A $2.50 dispatch service fee will be deducted from your refund. Confirm cancellation?"
+                    : "Cancelling before departure is 100% free with full refund. Confirm cancellation?")
+              }
               okText="Cancel order"
               okButtonProps={{ danger: true }}
               onConfirm={doCancel}
             >
               <Button
                 danger
-                disabled={status !== "PENDING" && status !== "PAID"}
+                disabled={status !== "PENDING" && status !== "PAID" && status !== "PICKING_UP"}
                 loading={cancelBusy}
                 style={{ marginTop: 28 }}
               >
@@ -548,8 +595,12 @@ export default function OrderDetail() {
         <Alert
           type="info"
           showIcon
-          message="Single Modification Policy"
-          description="Orders can only be modified once before pickup begins. Modifying delivery method, addresses, or package dimensions will re-calculate routes and delivery fees."
+          message={isVip ? "VIP Double Modification & Elastic Payload Policy" : "Single Modification Policy"}
+          description={
+            isVip
+              ? `VIP Privilege: Orders can be modified up to 2 times before pickup (Used ${currentMods} of 2). You also enjoy +10% payload tolerance (Drone: 3.3kg, Robot: 16.5kg).`
+              : "Orders can only be modified once before pickup begins. Modifying delivery method, addresses, or package dimensions will re-calculate routes and delivery fees."
+          }
           style={{ marginBottom: 16 }}
         />
 
@@ -567,10 +618,10 @@ export default function OrderDetail() {
           >
             <Radio.Group buttonStyle="solid" style={{ width: "100%", display: "flex", gap: 10 }}>
               <Radio.Button value="ROBOT" style={{ flex: 1, textAlign: "center", height: 42, lineHeight: "40px" }}>
-                <CarOutlined style={{ marginRight: 6 }} /> Ground Robot (Max 15kg, 0.30m³)
+                <CarOutlined style={{ marginRight: 6 }} /> Ground Robot {isVip ? "(Max 16.5kg, 0.33m³ 👑)" : "(Max 15kg, 0.30m³)"}
               </Radio.Button>
               <Radio.Button value="DRONE" style={{ flex: 1, textAlign: "center", height: 42, lineHeight: "40px" }}>
-                <ThunderboltOutlined style={{ marginRight: 6 }} /> Drone Express (Max 3kg, 0.05m³)
+                <ThunderboltOutlined style={{ marginRight: 6 }} /> Drone Express {isVip ? "(Max 3.3kg, 0.055m³ 👑)" : "(Max 3kg, 0.05m³)"}
               </Radio.Button>
             </Radio.Group>
           </Form.Item>

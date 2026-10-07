@@ -2,12 +2,18 @@ package com.wedelivery.service.impl;
 
 import com.wedelivery.entity.enums.VehicleType;
 import com.wedelivery.service.RouteService;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 
+/**
+ * 纯几何直线方案：不含任何路网信息，机器人画出来会横穿房屋。
+ * 仅在显式配置 wedelivery.routing.provider=haversine 时启用（离线/测试环境用）。
+ */
 @Service
+@ConditionalOnProperty(name = "wedelivery.routing.provider", havingValue = "haversine")
 public class HaversineRouteServiceImpl implements RouteService {
 
     private static final double EARTH_RADIUS_KM = 6371.0088;

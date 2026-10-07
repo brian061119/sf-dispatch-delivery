@@ -115,6 +115,11 @@ CREATE TABLE IF NOT EXISTS tracking_events (
     event_lng DECIMAL(10, 7) NOT NULL,
     event_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_tracking_order FOREIGN KEY (order_id) REFERENCES orders (id)
+    -- NOTE: no UNIQUE (order_id, stage) here. Route milestones (TO_PICKUP,
+    -- TO_DROPOFF, RETURNING, COMPLETED) are deduplicated in code by
+    -- TrackingService.ensureMilestonesRecorded, but operational events
+    -- (ORDER_UPDATED, DELIVERY_CONFIRMED, CANCELLED) legitimately repeat:
+    -- VIP orders allow 2 modifications, i.e. 2 rows with (order, ORDER_UPDATED).
 );
 
 -- ==========================================================

@@ -60,6 +60,15 @@ export function AppHeader() {
       <Space size="large">
         <Link to="/dashboard">Dashboard</Link>
         <Link to="/orders">Orders</Link>
+        <Link
+          to="/vip"
+          style={{
+            color: role === "VIP" ? "#d48806" : undefined,
+            fontWeight: role === "VIP" ? "bold" : "normal",
+          }}
+        >
+          {role === "VIP" ? "👑 VIP Center" : "💎 Upgrade to VIP"}
+        </Link>
         {role === "ADMIN" && <Link to="/admin">Admin</Link>}
       </Space>
       <div style={{ flex: 1 }} />
@@ -68,7 +77,11 @@ export function AppHeader() {
           + Create a new delivery
         </Button>
         <span>{username ?? "dev-user"}</span>
-        {role === "VIP" && <Tag color="gold">VIP</Tag>}
+        {role === "VIP" && (
+          <Link to="/vip">
+            <Tag color="gold" style={{ cursor: "pointer", fontWeight: "bold" }}>👑 VIP</Tag>
+          </Link>
+        )}
         {role === "ADMIN" && <Tag color="geekblue">ADMIN</Tag>}
         <Button
           onClick={() => {
