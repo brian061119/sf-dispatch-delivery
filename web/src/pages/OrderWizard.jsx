@@ -87,7 +87,7 @@ export default function OrderWizard() {
 /* ------------------------------------------------------------------ */
 
 function AddressStep({ stations, initial, onNext }) {
-  const revive = (saved) => (saved?.lat != null ? { ...EMPTY_ADDR, ...saved, street: saved.street || saved.line1 || "", status: "valid" } : { ...EMPTY_ADDR });
+  const revive = (saved) => (saved?.lat != null ? { ...EMPTY_ADDR, ...saved, street: saved.street || saved.line1 || "", status: "valid" } : { ...EMPTY_ADDR, ...saved, street: saved?.street || saved?.line1 || "", status: saved?.line1 ? "draft" : "empty" });
   const [pickup, setPickup] = useState(() => revive(initial.pickup));
   const [dropoff, setDropoff] = useState(() => revive(initial.dropoff));
   const [active, setActive] = useState("pickup");

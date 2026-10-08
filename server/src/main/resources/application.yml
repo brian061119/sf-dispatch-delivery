@@ -43,6 +43,10 @@ jwt:
 
 # demo 模拟器定时推进（SimulationScheduler）
 wedelivery:
+  ai:
+    api-key: ${GEMINI_API_KEY:}
+    model: ${GEMINI_MODEL:gemini-3.8-flash}
+    base-url: https://generativelanguage.googleapis.com/v1beta
   simulation:
     auto-tick: ${SIMULATION_AUTO_TICK:true}
     tick-ms: ${SIMULATION_TICK_MS:10000}
@@ -53,3 +57,4 @@ wedelivery:
     provider: ${ROUTING_PROVIDER:osrm}
     osrm-base-url: ${OSRM_BASE_URL:https://router.project-osrm.org}
     enabled: ${ROUTING_ENABLED:true}
+
