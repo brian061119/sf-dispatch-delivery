@@ -90,8 +90,8 @@ public class SimulationService {
             } else if (v.getStatus() == VehicleStatus.CHARGING) {
                 // 3. Recharging: switch to IDLE once battery reaches 100%
                 BigDecimal chargedLevel = v.getBatteryLevel().add(CHARGE_RATE_PER_TICK);
-                if (chargedLevel.compareTo(new BigDecimal("100.00")) >= 0) {
-                    v.setBatteryLevel(new BigDecimal("100.00"));
+                if (chargedLevel.compareTo(Vehicle.FULL_BATTERY) >= 0) {
+                    v.setBatteryLevel(Vehicle.FULL_BATTERY);
                     v.setStatus(VehicleStatus.IDLE);
                     v.setStatusUpdatedAt(now);
                     v.setCurrentSpeed(BigDecimal.ZERO);
@@ -179,7 +179,8 @@ public class SimulationService {
         v.setCurrentSpeed(BigDecimal.ZERO);
         v.setPositionUpdatedAt(now);
         v.setSpeedUpdatedAt(now);
-        v.setStatus(VehicleStatus.IDLE);
+        // 返站默认在配送站充电：电量未满转 CHARGING 由 tick 补电，满电则待命
+        v.setStatus(v.restingStatus());
         v.setStatusUpdatedAt(now);
         vehicleRepository.save(v);
     }

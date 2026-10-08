@@ -19,11 +19,23 @@ function makeIcon(color, label) {
         iconAnchor: [13, 26],
     });
 }
+
+// Live courier marker: emoji per vehicle type (robot/drone) on a white disc,
+// falling back to the neutral dot for unknown types.
+const VEHICLE_EMOJI = { ROBOT: '🤖', DRONE: '🚁' };
+function makeVehicleIcon(type) {
+    const emoji = VEHICLE_EMOJI[type] ?? '●';
+    return L.divIcon({
+        className: '',
+        html: `<div style="width:34px;height:34px;border-radius:50%;background:#fff;border:2.5px solid ${COLORS.vehicle};display:flex;align-items:center;justify-content:center;font-size:17px;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.35)">${emoji}</div>`,
+        iconSize: [34, 34],
+        iconAnchor: [17, 17],
+    });
+}
 const ICONS = {
     pickup: makeIcon(COLORS.pickup, 'P'),
     destination: makeIcon(COLORS.destination, 'D'),
     station: makeIcon(COLORS.station, 'S'),
-    vehicle: makeIcon(COLORS.vehicle, '●'),
 };
 
 const toXY = (p) => [Number(p.lat), Number(p.lng)];
@@ -58,6 +70,7 @@ export function MapView({
     vehicle,
     stations = [],
     route,
+    traveled,
     height = 420,
     onMapClick,
 }) {
@@ -91,11 +104,22 @@ export function MapView({
                 </Marker>
             )}
             {isValidPoint(vehicle) && (
-                <Marker position={toXY(vehicle)} icon={ICONS.vehicle}>
-                    <Popup>Courier</Popup>
+                <Marker position={toXY(vehicle)} icon={makeVehicleIcon(vehicle.type)}>
+                    <Popup>{vehicle.code ? `${vehicle.type ?? 'Courier'} · ${vehicle.code}` : 'Courier'}</Popup>
                 </Marker>
             )}
-            {route && route.length > 1 && <Polyline positions={route.filter(isValidPoint).map(toXY)} />}
+            {route && route.length > 1 && (
+                <Polyline
+                    positions={route.filter(isValidPoint).map(toXY)}
+                    pathOptions={{ color: '#74c0fc', weight: 3, dashArray: '6 8' }}
+                />
+            )}
+            {traveled && traveled.length > 1 && (
+                <Polyline
+                    positions={traveled.filter(isValidPoint).map(toXY)}
+                    pathOptions={{ color: '#1971c2', weight: 4 }}
+                />
+            )}
         </MapContainer>
     );
 }

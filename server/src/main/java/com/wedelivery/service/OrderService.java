@@ -44,6 +44,7 @@ public class OrderService {
     private final RecommendationService recommendationService;
     private final RouteService routeService;
     private final OrderReviewRepository orderReviewRepository;
+    private final UserRepository userRepository;
 
     // Tracking code alphabet: excludes ambiguous 0/O, 1/I (32 characters; 16 chars ≈ 80 bits entropy)
     private static final String TRACKING_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -130,13 +131,18 @@ public class OrderService {
                 weight
         );
 
+        boolean isVip = currentUser != null && currentUser.isVip();
+        BigDecimal capacityDivisor = isVip ? new BigDecimal("1.10") : BigDecimal.ONE;
+        BigDecimal checkWeight = weight.divide(capacityDivisor, 4, RoundingMode.HALF_UP);
+        BigDecimal checkVolume = volume.divide(capacityDivisor, 4, RoundingMode.HALF_UP);
+
         List<Vehicle> availableVehicles = vehicleRepository.findAvailableVehiclesForLock(
                 matchedPlan.getStationId(),
                 matchedPlan.getVehicleType(),
-                VehicleStatus.IDLE,
+                RecommendationService.DISPATCHABLE_STATUSES,
                 requiredBattery,
-                weight,
-                volume
+                checkWeight,
+                checkVolume
         );
 
         if (availableVehicles.isEmpty()) {
@@ -262,24 +268,36 @@ public class OrderService {
             throw new IllegalStateException("Cannot confirm receipt for a cancelled order.");
         }
 
+        // Receipt can only be confirmed once the package has reached the drop-off point
+        double progress = tripProgressRatio(order);
+        if (order.getStatus() == OrderStatus.PENDING_PAYMENT || progress < PACKAGE_DELIVERED_RATIO) {
+            throw new IllegalStateException("The package has not been delivered yet. Receipt can only be confirmed after delivery.");
+        }
+
         order.setStatus(OrderStatus.DELIVERED);
         if (order.getActualDeliveryTime() == null) {
             order.setActualDeliveryTime(LocalDateTime.now());
         }
         orderRepository.save(order);
 
-        // Release vehicle back to IDLE state
-        if (order.getVehicleId() != null) {
+        // Release the vehicle back to its resting state (charge at station if not full, otherwise idle),
+        // but only once it is docked and still ours. A vehicle that is still driving back is left in
+        // IN_DELIVERY for the simulator to bring home; one already reassigned to a newer order is not touched.
+        boolean vehicleDocked = progress >= 1.0;
+        boolean vehicleReassigned = order.getVehicleId() != null
+                && orderRepository.existsByVehicleIdAndIdGreaterThanAndStatusNot(
+                        order.getVehicleId(), order.getId(), OrderStatus.CANCELLED);
+        if (order.getVehicleId() != null && vehicleDocked && !vehicleReassigned) {
             vehicleRepository.findById(order.getVehicleId()).ifPresent(v -> {
                 if (v.getStatus() == VehicleStatus.IN_DELIVERY) {
                     LocalDateTime now = LocalDateTime.now();
-                    v.setStatus(VehicleStatus.IDLE);
+                    v.setStatus(v.restingStatus());
                     v.setStatusUpdatedAt(now);
                     v.setCurrentSpeed(BigDecimal.ZERO);
                     v.setSpeedUpdatedAt(now);
                     vehicleRepository.save(v);
-                    log.info("Vehicle {} successfully released back to IDLE upon order {} delivery.",
-                            v.getVehicleCode(), order.getOrderNumber());
+                    log.info("Vehicle {} released back to {} upon order {} delivery.",
+                            v.getVehicleCode(), v.getStatus(), order.getOrderNumber());
                 }
             });
         }
@@ -287,7 +305,7 @@ public class OrderService {
         // Record delivery completion milestone event
         TrackingEvent event = TrackingEvent.builder()
                 .orderId(order.getId())
-                .stage(TrackingStage.COMPLETED)
+                .stage(TrackingStage.DELIVERY_CONFIRMED)
                 .statusDescription("Delivery confirmed by recipient. Order fulfilled successfully, vehicle returned and docked.")
                 .eventLat(order.getDropoffLat())
                 .eventLng(order.getDropoffLng())
@@ -299,6 +317,19 @@ public class OrderService {
     }
 
     private static final BigDecimal DISPATCH_SERVICE_FEE = new BigDecimal("2.50");
+
+    /** Share of the trip timeline at which the package is handed over (TrackingService: pickup 25% + delivery 50%). */
+    private static final double PACKAGE_DELIVERED_RATIO = 0.75;
+
+    /** Elapsed share of the scheduled trip, 0 when the schedule is missing or not started yet. */
+    private double tripProgressRatio(Order order) {
+        if (order.getScheduledStartTime() == null || order.getEstimatedDeliveryTime() == null) {
+            return 0.0;
+        }
+        long totalSeconds = Math.max(60, Duration.between(order.getScheduledStartTime(), order.getEstimatedDeliveryTime()).getSeconds());
+        long elapsedSeconds = Math.max(0, Duration.between(order.getScheduledStartTime(), LocalDateTime.now()).getSeconds());
+        return (double) elapsedSeconds / totalSeconds;
+    }
 
     /**
      * Cancel order business closure:
@@ -359,9 +390,15 @@ public class OrderService {
         BigDecimal refund = finalPrice;
 
         boolean vehicleEnRouteToPickup = (previousStatus == OrderStatus.PICKING_UP);
+        boolean isVip = (currentUser != null && currentUser.isVip())
+                || userRepository.findById(order.getUserId()).map(User::isVip).orElse(false);
 
         if (vehicleEnRouteToPickup) {
-            if (finalPrice.compareTo(DISPATCH_SERVICE_FEE) > 0) {
+            if (isVip) {
+                fee = BigDecimal.ZERO;
+                refund = finalPrice;
+                log.info("VIP privilege: dispatch service fee waived for order {}", order.getOrderNumber());
+            } else if (finalPrice.compareTo(DISPATCH_SERVICE_FEE) > 0) {
                 fee = DISPATCH_SERVICE_FEE;
                 refund = finalPrice.subtract(DISPATCH_SERVICE_FEE);
             } else {
@@ -421,9 +458,14 @@ public class OrderService {
         String stationDesc = returnStation != null
                 ? " Rerouting to nearest available Station #" + returnStation.getId() + " (" + returnStation.getName() + ")."
                 : "";
-        String feeDesc = fee.compareTo(BigDecimal.ZERO) > 0
-                ? " Dispatch service fee: $" + fee + ", refunded: $" + refund + "."
-                : " Full refund: $" + refund + ".";
+        String feeDesc;
+        if (isVip && vehicleEnRouteToPickup) {
+            feeDesc = " VIP privilege: Dispatch service fee waived ($0.00). Full refund: $" + refund + ".";
+        } else if (fee.compareTo(BigDecimal.ZERO) > 0) {
+            feeDesc = " Dispatch service fee: $" + fee + ", refunded: $" + refund + ".";
+        } else {
+            feeDesc = " Full refund: $" + refund + ".";
+        }
 
         TrackingEvent event = TrackingEvent.builder()
                 .orderId(order.getId())
@@ -525,8 +567,13 @@ public class OrderService {
             throw new IllegalStateException("Cannot modify an order that is " + order.getStatus());
         }
 
-        if (Boolean.TRUE.equals(order.getHasBeenModified()) || (order.getModifiedCount() != null && order.getModifiedCount() >= 1)) {
-            throw new IllegalStateException("This order has already been modified. Only 1 modification is permitted.");
+        boolean isVip = (currentUser != null && currentUser.isVip())
+                || userRepository.findById(order.getUserId()).map(User::isVip).orElse(false);
+        int maxModifications = isVip ? 2 : 1;
+        int currentCount = order.getModifiedCount() != null ? order.getModifiedCount() : (Boolean.TRUE.equals(order.getHasBeenModified()) ? 1 : 0);
+        if (currentCount >= maxModifications) {
+            throw new IllegalStateException("This order has already been modified " + currentCount + " time(s). Maximum "
+                    + maxModifications + " modification" + (maxModifications > 1 ? "s are" : " is") + " permitted.");
         }
 
         // 1. Resolve target vehicle type (supports upgradeToDrone shortcut)
@@ -537,11 +584,17 @@ public class OrderService {
             targetVehicleType = request.getVehicleType();
         }
 
+        BigDecimal capacityTolerance = isVip ? new BigDecimal("1.10") : BigDecimal.ONE;
+        BigDecimal maxDroneWeight = new BigDecimal("3.00").multiply(capacityTolerance).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal maxDroneVolume = new BigDecimal("0.05").multiply(capacityTolerance).setScale(4, RoundingMode.HALF_UP);
+        BigDecimal maxRobotWeight = new BigDecimal("15.00").multiply(capacityTolerance).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal maxRobotVolume = new BigDecimal("0.30").multiply(capacityTolerance).setScale(4, RoundingMode.HALF_UP);
+
         // Specialized validation for drone upgrade: verify package weight capacity
         if (targetVehicleType == VehicleType.DRONE && order.getVehicleType() != VehicleType.DRONE) {
             BigDecimal currentOrReqWeight = request.getPackageWeight() != null ? request.getPackageWeight() : order.getPackageWeight();
-            if (currentOrReqWeight != null && currentOrReqWeight.compareTo(new BigDecimal("3.00")) > 0) {
-                throw new IllegalArgumentException("Package weight (" + currentOrReqWeight + " kg) exceeds drone maximum capacity of 3.0 kg. Upgrade is not available.");
+            if (currentOrReqWeight != null && currentOrReqWeight.compareTo(maxDroneWeight) > 0) {
+                throw new IllegalArgumentException("Package weight (" + currentOrReqWeight + " kg) exceeds drone maximum capacity of " + maxDroneWeight + " kg. Upgrade is not available.");
             }
         }
 
@@ -575,18 +628,18 @@ public class OrderService {
 
         // Validate package weight and volume physical limits according to target vehicle carrier type
         if (targetVehicleType == VehicleType.DRONE) {
-            if (weight != null && weight.compareTo(new BigDecimal("3.00")) > 0) {
-                throw new IllegalArgumentException("Package weight (" + weight + " kg) exceeds drone maximum capacity of 3.0 kg.");
+            if (weight != null && weight.compareTo(maxDroneWeight) > 0) {
+                throw new IllegalArgumentException("Package weight (" + weight + " kg) exceeds drone maximum capacity of " + maxDroneWeight + " kg.");
             }
-            if (volume != null && volume.compareTo(new BigDecimal("0.05")) > 0) {
-                throw new IllegalArgumentException("Package volume (" + volume + " m³) exceeds drone cargo bay limit of 0.05 m³.");
+            if (volume != null && volume.compareTo(maxDroneVolume) > 0) {
+                throw new IllegalArgumentException("Package volume (" + volume + " m³) exceeds drone cargo bay limit of " + maxDroneVolume + " m³.");
             }
         } else if (targetVehicleType == VehicleType.ROBOT) {
-            if (weight != null && weight.compareTo(new BigDecimal("15.00")) > 0) {
-                throw new IllegalArgumentException("Package weight (" + weight + " kg) exceeds robot maximum capacity of 15.0 kg.");
+            if (weight != null && weight.compareTo(maxRobotWeight) > 0) {
+                throw new IllegalArgumentException("Package weight (" + weight + " kg) exceeds robot maximum capacity of " + maxRobotWeight + " kg.");
             }
-            if (volume != null && volume.compareTo(new BigDecimal("0.30")) > 0) {
-                throw new IllegalArgumentException("Package volume (" + volume + " m³) exceeds robot cargo bay limit of 0.30 m³.");
+            if (volume != null && volume.compareTo(maxRobotVolume) > 0) {
+                throw new IllegalArgumentException("Package volume (" + volume + " m³) exceeds robot cargo bay limit of " + maxRobotVolume + " m³.");
             }
         }
 
@@ -645,14 +698,17 @@ public class OrderService {
                     weight
             );
 
+            BigDecimal checkWeight = weight.divide(capacityTolerance, 4, RoundingMode.HALF_UP);
+            BigDecimal checkVolume = volume.divide(capacityTolerance, 4, RoundingMode.HALF_UP);
+
             // Lock new vehicle from the selected optimal station
             List<Vehicle> availableVehicles = vehicleRepository.findAvailableVehiclesForLock(
                     matchedPlan.getStationId(),
                     matchedPlan.getVehicleType(),
-                    VehicleStatus.IDLE,
+                    RecommendationService.DISPATCHABLE_STATUSES,
                     requiredBattery,
-                    weight,
-                    volume
+                    checkWeight,
+                    checkVolume
             );
 
             if (availableVehicles.isEmpty()) {
@@ -726,8 +782,9 @@ public class OrderService {
         order.setTotalDistance(matchedPlan.getTotalDistance());
         order.setScheduledStartTime(matchedPlan.getScheduledStartTime());
         order.setEstimatedDeliveryTime(matchedPlan.getEstimatedDeliveryTime());
-        order.setHasBeenModified(true);
-        order.setModifiedCount(1);
+        int newModifiedCount = currentCount + 1;
+        order.setModifiedCount(newModifiedCount);
+        order.setHasBeenModified(newModifiedCount >= maxModifications);
         orderRepository.save(order);
 
         // 7. Record tracking event
@@ -738,8 +795,8 @@ public class OrderService {
 
         TrackingEvent event = TrackingEvent.builder()
                 .orderId(order.getId())
-                .stage(TrackingStage.TO_PICKUP)
-                .statusDescription("Order modified (1/1 allowed)." + modeDesc + diffDesc)
+                .stage(TrackingStage.ORDER_UPDATED)
+                .statusDescription("Order modified (" + newModifiedCount + "/" + maxModifications + " allowed)." + modeDesc + diffDesc)
                 .eventLat(order.getPickupLat())
                 .eventLng(order.getPickupLng())
                 .eventTime(LocalDateTime.now())
@@ -831,13 +888,21 @@ public class OrderService {
             throw new AccessDeniedException("You do not have access to order " + orderNumber);
         }
 
+        boolean isVip = (currentUser != null && currentUser.isVip())
+                || userRepository.findById(order.getUserId()).map(User::isVip).orElse(false);
+        int maxModifications = isVip ? 2 : 1;
+        order.setMaxModificationsAllowed(maxModifications);
+
         // Dynamically evaluate drone upgrade availability for frontend display:
-        // Must be a robot order, not yet modified, in pre-pickup phase, weight <= 3.0kg,
+        // Must be a robot order, modifications remaining, in pre-pickup phase, weight within drone limit (with VIP tolerance),
         // and must have an idle drone with estimated battery remaining >= 10% after completing delivery.
+        int currentModifiedCount = order.getModifiedCount() != null ? order.getModifiedCount() : (Boolean.TRUE.equals(order.getHasBeenModified()) ? 1 : 0);
+        BigDecimal maxWeight = new BigDecimal("3.00").multiply(isVip ? new BigDecimal("1.10") : BigDecimal.ONE);
+
         boolean canUpgrade = order.getVehicleType() == VehicleType.ROBOT
-                && !Boolean.TRUE.equals(order.getHasBeenModified())
+                && currentModifiedCount < maxModifications
                 && (order.getStatus() == OrderStatus.PAID || order.getStatus() == OrderStatus.PICKING_UP || order.getStatus() == OrderStatus.PENDING_PAYMENT)
-                && (order.getPackageWeight() != null && order.getPackageWeight().compareTo(new BigDecimal("3.00")) <= 0);
+                && (order.getPackageWeight() != null && order.getPackageWeight().compareTo(maxWeight) <= 0);
 
         if (canUpgrade) {
             QuoteRequest quoteReq = QuoteRequest.builder()

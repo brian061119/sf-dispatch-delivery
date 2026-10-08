@@ -1,8 +1,10 @@
 import { create } from 'zustand';
+import { apiErrorMessage } from '../lib/http';
 import { sendChatMessage } from '../api/ai';
 // AI assistant conversation state. The drawer is app-global (mounted in App).
 // messages: [{ role: 'user'|'assistant', content, cards?, prefill? }]
 export const useChat = create((set, get) => ({
+    generation: 0,
     open: false,
     busy: false,
     messages: [],
@@ -10,20 +12,23 @@ export const useChat = create((set, get) => ({
     async send(text) {
         const content = (text ?? '').trim();
         if (!content || get().busy) return;
-        const history = get().messages.map(({ role, content: c }) => ({ role, content: c }));
+        const generation = get().generation;
+        const history = get().messages.slice(-20).map(({ role, content: c }) => ({ role, content: c }));
         set((s) => ({ busy: true, messages: [...s.messages, { role: 'user', content }] }));
         try {
             const res = await sendChatMessage({ message: content, history });
+            if (get().generation !== generation) return;
             set((s) => ({
                 busy: false,
                 messages: [...s.messages, { role: 'assistant', content: res.reply ?? '…', cards: res.cards ?? [], prefill: res.prefill }],
             }));
-        } catch {
+        } catch (err) {
+            if (get().generation !== generation) return;
             set((s) => ({
                 busy: false,
-                messages: [...s.messages, { role: 'assistant', content: 'Sorry — the assistant is unavailable right now. You can keep using the app normally.', cards: [] }],
+                messages: [...s.messages, { role: 'assistant', content: apiErrorMessage(err, 'The assistant is unavailable. Please try again later.'), cards: [] }],
             }));
         }
     },
-    clear: () => set({ messages: [] }),
+    clear: () => set((s) => ({ messages: [], busy: false, open: false, generation: s.generation + 1 })),
 }));

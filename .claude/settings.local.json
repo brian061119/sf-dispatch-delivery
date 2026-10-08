@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(echo \"npm: $\\(npm --version 2>/dev/null || echo 'not on PATH'\\)\")",
+      "Bash(node --version)",
+      "Read(//c/Program Files/JetBrains/IntelliJ IDEA 2026.1.1/plugins/maven/lib/maven3/bin/**)",
+      "Read(//c/Program Files/Java/jdk-17.0.19/**)"
+    ]
+  }
+}

@@ -2,9 +2,11 @@ package com.wedelivery.controller;
 
 import com.wedelivery.dto.TrackingResponse;
 import com.wedelivery.entity.User;
+import com.wedelivery.entity.enums.OrderStatus;
 import com.wedelivery.service.OrderService;
 import com.wedelivery.service.TrackingService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -41,16 +43,42 @@ public class TrackingController {
 
     private Map<String, Object> toContractResponse(TrackingResponse res) {
         Map<String, Object> map = new HashMap<>();
+        // Contract semantics: "orderId" in order endpoints is the SFORD order
+        // number (cancel/update/track all look up by it). Keep that mapping
+        // intact; expose the numeric PK separately as orderDbId.
         map.put("orderId", res.getOrderNumber());
+        map.put("orderNumber", res.getOrderNumber());
+        map.put("orderDbId", res.getOrderId());
         map.put("status", res.getOrderStatus().name());
         map.put("vehicleType", res.getVehicleType().name());
+        map.put("vehicleCode", res.getVehicleCode());
+        map.put("currentStage", res.getCurrentStage() != null ? res.getCurrentStage().name() : null);
         map.put("currentLat", res.getCurrentLat());
         map.put("currentLng", res.getCurrentLng());
-        map.put("estimatedArrival", LocalDateTime.now().plusMinutes(res.getEtaMinutesRemaining()).format(DateTimeFormatter.ISO_DATE_TIME));
-        // 附加详细进度
+        map.put("pickupLat", res.getPickupLat());
+        map.put("pickupLng", res.getPickupLng());
+        map.put("destinationLat", res.getDestinationLat());
+        map.put("destinationLng", res.getDestinationLng());
+        map.put("routePolyline", res.getRoutePolyline());
+        // Cancelled and delivered orders have no "estimated arrival":
+        // now + 0 minutes renders as a fake ETA that coincidentally equals the
+        // query instant (it looked like the vehicle's return time). Emit null
+        // so the frontend shows "—".
+        map.put("estimatedArrival", (res.getOrderStatus() == OrderStatus.CANCELLED
+                || res.getOrderStatus() == OrderStatus.DELIVERED)
+                ? null
+                : LocalDateTime.now().plusMinutes(res.getEtaMinutesRemaining()).format(DateTimeFormatter.ISO_DATE_TIME));
+        // Attach detailed progress fields
         map.put("progressPercent", res.getProgressPercent());
         map.put("currentStageDescription", res.getCurrentStageDescription());
         map.put("events", res.getEvents());
         return map;
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, Object>> handleOrderNotFound(IllegalArgumentException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("error", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
     }
 }

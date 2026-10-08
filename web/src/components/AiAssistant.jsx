@@ -30,7 +30,7 @@ export function AiAssistant() {
     }
 
     function usePrefill(prefill) {
-        if (prefill) wizard.prefill(prefill);
+        if (prefill) { wizard.reset(); wizard.prefill(prefill); }
         toggle();
         navigate('/order/new');
     }
@@ -58,7 +58,7 @@ export function AiAssistant() {
                         <Card size="small" style={{ background: '#f9f0ff', border: '1px solid #d3adf7' }}>
                             <Text>Hi! Ask me things like:</Text>
                             <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
-                                <Button size="small" onClick={() => send('Where is my delivery TC-8ZK2QA?')}>“Where is my delivery TC-8ZK2QA?”</Button>
+                                <Button size="small" onClick={() => send('Where is my delivery?')}>“Where is my delivery?”</Button>
                                 <Button size="small" onClick={() => send('How much for a 2kg package?')}>“How much for a 2kg package?”</Button>
                                 <Button size="small" onClick={() => send('Send a 3kg fragile cake to Mission')}>“Send a 3kg fragile cake to Mission”</Button>
                             </div>
@@ -73,7 +73,7 @@ export function AiAssistant() {
                                         {card.type === 'order' && (
                                             <Space direction="vertical" size={4}>
                                                 <Text strong>{card.orderId} <Tag color={card.status === 'DELIVERED' ? 'green' : card.status === 'CANCELLED' ? 'red' : 'blue'}>{card.status}</Tag></Text>
-                                                <Text type="secondary">{card.packageDescription} · ${Number(card.estimatedCost ?? 0).toFixed(2)}</Text>
+                                                <Text type="secondary">{card.packageDescription}{card.estimatedCost != null ? ` · $${Number(card.estimatedCost).toFixed(2)}` : ""}</Text>
                                                 <Button size="small" type="primary" onClick={() => { toggle(); navigate(`/track?code=${encodeURIComponent(card.trackingCode)}`); }}>Track live →</Button>
                                             </Space>
                                         )}

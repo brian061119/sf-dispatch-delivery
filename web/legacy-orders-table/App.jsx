@@ -39,7 +39,7 @@ export default function App() {
             <table>
               <thead>
                 <tr>
-                  <th>运单号</th><th>日期</th><th>包裹</th><th>载具</th><th>状态</th><th>金额</th><th>操作</th>
+                  <th>Tracking No.</th><th>Date</th><th>Package</th><th>Vehicle</th><th>Status</th><th>Amount</th><th>Actions</th>
                 </tr>
               </thead>
               <tbody>

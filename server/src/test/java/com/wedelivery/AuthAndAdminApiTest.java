@@ -85,14 +85,14 @@ class AuthAndAdminApiTest {
                 + "\"package\":{\"description\":\"small parcel\",\"weightKg\":1.5},"
                 + "\"priority\":\"STANDARD\"}";
 
-        // 站点 1 有两台待命无人机（DRONE-DT-01、DRONE-DT-02）满足准入
+        // 站点 1 有三台无人机满足准入：待命 DRONE-DT-01/02 + 充电中 DRONE-DT-03（电量够即可抽调）
         mvc.perform(post("/api/recommendations")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.candidates[?(@.vehicleType=='DRONE')].availableUnits")
-                        .value(org.hamcrest.Matchers.hasItem(2)));
+                        .value(org.hamcrest.Matchers.hasItem(3)));
 
         // 让其中一台报故障，可调度台数应随之下降 —— 证明该值是算出来的 (机器上报接口仅限管理员)
         mvc.perform(post("/api/dispatch/vehicles/DRONE-DT-01/telemetry")
@@ -107,7 +107,7 @@ class AuthAndAdminApiTest {
                         .content(request))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.candidates[?(@.vehicleType=='DRONE')].availableUnits")
-                        .value(org.hamcrest.Matchers.hasItem(1)));
+                        .value(org.hamcrest.Matchers.hasItem(2)));
     }
 
     private String login(String username, String password) throws Exception {

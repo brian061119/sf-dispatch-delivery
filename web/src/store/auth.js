@@ -1,3 +1,4 @@
+import { useChat } from './chat';
 import { create } from 'zustand';
 import * as authApi from '../api/auth';
 import { clearAuth, getRole, getToken, getUsername, setAuth } from '../lib/auth';
@@ -12,20 +13,27 @@ export const useAuth = create((set) => ({
     async login(username, password) {
         const res = await authApi.login({ username, password });
         const role = res.user?.role || 'USER';
+        useChat.getState().clear();
         setAuth(res.token, res.user.username, role);
         set({ token: res.token, username: res.user.username, role });
     },
     async signup(username, password, email) {
         const res = await authApi.register({ username, password, email });
         const role = res.user?.role || 'USER';
+        useChat.getState().clear();
         setAuth(res.token, res.user.username, role);
         set({ token: res.token, username: res.user.username, role });
+    },
+    setRole(newRole) {
+        setAuth(getToken(), getUsername(), newRole);
+        set({ role: newRole });
     },
     async logout() {
         try {
             await authApi.logout(); // best-effort (contract TBD: server-side invalidation?)
         }
         catch { /* local logout must succeed even if the endpoint fails */ }
+        useChat.getState().clear();
         clearAuth();
         set({ token: null, username: null, role: 'USER' });
     },

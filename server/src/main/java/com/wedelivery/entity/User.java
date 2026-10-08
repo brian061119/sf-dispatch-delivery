@@ -41,6 +41,10 @@ public class User {
     @Column(name = "vip_expire_at")
     private LocalDateTime vipExpireAt;
 
+    public boolean isVip() {
+        return role == Role.VIP && (vipExpireAt == null || vipExpireAt.isAfter(LocalDateTime.now()));
+    }
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

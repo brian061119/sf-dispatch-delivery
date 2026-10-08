@@ -254,11 +254,11 @@ export async function getStations() {
 export async function parseOrderText(text) {
     await latency();
     const weightMatch = text.match(/(\d+(?:\.\d+)?)\s*kg/i);
-    const fragile = /fragile|易碎/i.test(text);
+    const fragile = /fragile/i.test(text);
     const itemName = text
         .replace(/send|from|to|express|standard|please/gi, ' ')
         .replace(/(\d+(?:\.\d+)?)\s*kg/i, ' ')
-        .replace(/fragile|易碎/gi, ' ')
+        .replace(/fragile/gi, ' ')
         .trim()
         .split(/\s+/)
         .slice(0, 4)

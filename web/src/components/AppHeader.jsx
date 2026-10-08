@@ -2,7 +2,9 @@ import { Button, Layout, Space, Tag, Typography } from "antd";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { BRAND_NAME } from "../lib/brand";
 import { useAuth } from "../store/auth";
-// Top bar. TWO variants driven by the auth token:
+// Top bar has guest, customer and admin variants.
+// Admin sees only the console, account and logout.
+// Other variants:
 //   guest  — public pages (/track incl. ?code=): brand + Log in button
 //   authed — brand + Dashboard + Orders + [+ Create a new delivery]
 //            (+ Admin for ADMIN role) + user (+ role badge) + Log out
@@ -53,22 +55,34 @@ export function AppHeader() {
   return (
     <Layout.Header style={barStyle}>
       <Typography.Title level={4} style={{ margin: 0 }}>
-        <Link to="/dashboard" style={brandLinkStyle}>
+        <Link to={role === "ADMIN" ? "/admin" : "/dashboard"} style={brandLinkStyle}>
           {BRAND_NAME}
         </Link>
       </Typography.Title>
       <Space size="large">
-        <Link to="/dashboard">Dashboard</Link>
-        <Link to="/orders">Orders</Link>
-        {role === "ADMIN" && <Link to="/admin">Admin</Link>}
+        {role === "ADMIN" ? (
+          <Link to="/admin">Admin console</Link>
+        ) : (
+          <>
+            <Link to="/dashboard">Dashboard</Link>
+            <Link to="/orders">Orders</Link>
+            <Link to="/vip" style={{ color: role === "VIP" ? "#d48806" : undefined, fontWeight: role === "VIP" ? "bold" : "normal" }}>
+              {role === "VIP" ? "👑 VIP Center" : "💎 Upgrade to VIP"}
+            </Link>
+          </>
+        )}
       </Space>
       <div style={{ flex: 1 }} />
       <Space>
-        <Button type="primary" onClick={() => nav("/order/new")}>
+        {role !== "ADMIN" && <Button type="primary" onClick={() => nav("/order/new")}>
           + Create a new delivery
-        </Button>
+        </Button>}
         <span>{username ?? "dev-user"}</span>
-        {role === "VIP" && <Tag color="gold">VIP</Tag>}
+        {role === "VIP" && (
+          <Link to="/vip">
+            <Tag color="gold" style={{ cursor: "pointer", fontWeight: "bold" }}>👑 VIP</Tag>
+          </Link>
+        )}
         {role === "ADMIN" && <Tag color="geekblue">ADMIN</Tag>}
         <Button
           onClick={() => {

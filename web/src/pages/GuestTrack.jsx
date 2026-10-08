@@ -1,15 +1,18 @@
-import { Alert, Card, Col, Descriptions, Input, Progress, Row, Space, Timeline, Typography } from 'antd';
+import { Alert, Button, Card, Col, Descriptions, Input, Popconfirm, Progress, Row, Space, Timeline, Typography, message } from 'antd';
 import { EnvironmentOutlined, SafetyOutlined, SearchOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { getTrackingByCode } from '../api/tracking';
+import { cancelOrder } from '../api/order';
+import { getStations } from '../api/station';
 import { MapView } from '../components/MapView';
 import { StatusBadge } from '../components/StatusBadge';
 import { StatusTimeline } from '../components/StatusTimeline';
 import { VehicleIcon } from '../components/VehicleIcon';
 import { BRAND_GRADIENT, BRAND_HERO_BG, BRAND_NAME, CARD_SHADOW, FULL_BLEED, HERO_BG_SIZE } from '../lib/brand';
 import { isAuthed } from '../lib/auth';
+import { apiErrorMessage } from '../lib/http';
 // Owner: Yuning Zhang (tracking). Wireframe: wireframes/11_GuestTrack.svg
 // PUBLIC page (no login). This is also the landing page for guests — App.jsx
 // sends every unauthenticated visit to /track.
@@ -25,9 +28,11 @@ import { isAuthed } from '../lib/auth';
 //   /track?code=<code> canonical, shareable result link
 
 const POLL_MS = 5000;
-// Once the delivery reaches one of these the backend stops moving it, so
-// polling would only write to the database for nothing.
-const TERMINAL_STATUSES = ['DELIVERED', 'CANCELLED'];
+// The terminal state for POLLING is COMPLETED (or CANCELLED): the backend
+// reports status=DELIVERED as soon as the package is handed over — which
+// INCLUDES the RETURNING leg — but the vehicle is still driving back to the
+// station then, so we must keep polling (and moving the marker) until the
+// vehicle's own currentStage reaches COMPLETED.
 const ORDER_NUMBER_PREFIX = 'SFORD';
 
 /** Codes are case-insensitive and people paste them with spaces. */
@@ -53,8 +58,10 @@ export default function GuestTrack() {
 
     const [code, setCode] = useState(urlCode);
     const [tracking, setTracking] = useState(null);
+    const [stations, setStations] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [cancelBusy, setCancelBusy] = useState(false);
     // Guards against a slow response overwriting a newer lookup, and keeps the
     // polling callback reading the current code without re-creating itself.
     const activeCodeRef = useRef(null);
@@ -99,11 +106,16 @@ export default function GuestTrack() {
         }
     }, [navigate, urlLookupCode]);
 
-    // Poll only while the delivery can still move. Note that a tracking
-    // request is not a pure read: the backend advances its simulation on every
-    // call, so stopping at the terminal state matters.
+    // Poll only while the delivery can still move. The backend advances its
+    // simulation on every tracking call, so stopping at the true terminal
+    // state matters. A delivery's terminal state for POLLING is COMPLETED (or
+    // CANCELLED); status=DELIVERED already fires during the RETURNING leg, so
+    // matching on status alone would freeze the marker as soon as the package
+    // is handed over even though the vehicle is still driving back.
     useEffect(() => {
-        if (!tracking || TERMINAL_STATUSES.includes(tracking.status)) return undefined;
+        const terminal =
+            tracking?.currentStage === 'COMPLETED' || tracking?.status === 'CANCELLED';
+        if (!tracking || terminal) return undefined;
         const timer = setInterval(() => lookup(activeCodeRef.current, { silent: true }), POLL_MS);
         return () => clearInterval(timer);
     }, [tracking, lookup]);
@@ -118,8 +130,191 @@ export default function GuestTrack() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [urlLookupCode]);
 
+    // Cancel (owner only): the tracking endpoint itself is public, so gate the
+    // button on a login; the cancel API enforces ownership server-side and
+    // returns 403 for anyone who is not the owner.
+    const canCancel = Boolean(
+        tracking
+        && isAuthed()
+        && ['PENDING_PAYMENT', 'PAID', 'PICKING_UP'].includes(tracking.detailStatus ?? tracking.status)
+    );
+    async function doCancel() {
+        setCancelBusy(true);
+        try {
+            // Cancel endpoints look the order up by its SFORD order number,
+            // not the numeric database id (contract-wide "orderId" semantics).
+            await cancelOrder(tracking.orderNumber ?? tracking.orderId);
+            message.success('Order cancelled. Any eligible refund has been processed.');
+            await lookup(activeCodeRef.current, { silent: true });
+        } catch (err) {
+            message.error(apiErrorMessage(err, 'Could not cancel this order.'));
+        } finally {
+            setCancelBusy(false);
+        }
+    }
+
+    // The 3 service stations are public data (GET /api/stations, permitAll).
+    // StationInfoDto uses latitude/longitude — normalize once for MapView.
+    useEffect(() => {
+        getStations()
+            .then((items) => setStations((items ?? []).map((s) => ({ ...s, lat: s.lat ?? s.latitude, lng: s.lng ?? s.longitude }))))
+            .catch(() => {}); // stations are decorative on this page — ignore failures
+    }, []);
+
     const events = tracking?.events ?? [];
+    // DELIVERED covers both the return-to-station leg and the final COMPLETED
+    // moment: the package is handed over, so the trip is over for the user.
+    // We stop showing the vehicle marker and draw the whole loop solid below.
+    // Only the final COMPLETED stage hides the vehicle and draws the whole
+    // loop solid. The RETURNING leg (backend still reports status=DELIVERED
+    // there, because the package is already handed over) must keep showing the
+    // marker and let the D->S segment fill in solid as the vehicle drives back.
+    const isDelivered = tracking?.currentStage === 'COMPLETED';
     const hasPosition = Number.isFinite(Number(tracking?.currentLat)) && Number.isFinite(Number(tracking?.currentLng));
+    const vehicleNow = !isDelivered && hasPosition ? { lat: Number(tracking.currentLat), lng: Number(tracking.currentLng) } : null;
+    const toPoint = (lat, lng) => (Number.isFinite(Number(lat)) && Number.isFinite(Number(lng)) ? { lat: Number(lat), lng: Number(lng) } : null);
+    const pickupPoint = toPoint(tracking?.pickupLat, tracking?.pickupLng);
+    const destinationPoint = toPoint(tracking?.destinationLat, tracking?.destinationLng);
+    // Planned route as a polyline. Preferred source is `routePolyline`: the real
+    // road-network geometry (station → pickup → dropoff → station) returned by the
+    // routing provider, so the line follows streets instead of cutting through
+    // buildings. When it is absent (offline/straight-line provider, or an order
+    // that has not started) we fall back to the milestone coordinates, which at
+    // least give the route skeleton.
+    const roadGeometry = Array.isArray(tracking?.routePolyline)
+        ? tracking.routePolyline
+            .map((pair) => (Array.isArray(pair) ? toPoint(pair[0], pair[1]) : null))
+            .filter(Boolean)
+        : [];
+    const usesRoadGeometry = roadGeometry.length > 1;
+    const routePoints = usesRoadGeometry
+        ? roadGeometry
+        : events
+            .map((e) => toPoint(e.eventLat, e.eventLng))
+            .filter(Boolean)
+            .filter((p, i, arr) => i === 0 || p.lat !== arr[i - 1].lat || p.lng !== arr[i - 1].lng);
+    // With real road geometry the live position already lies on the drawn line
+    // (and has its own marker), so only the skeleton needs it appended.
+    if (!usesRoadGeometry && vehicleNow && (routePoints.length === 0 || vehicleNow.lat !== routePoints[routePoints.length - 1].lat || vehicleNow.lng !== routePoints[routePoints.length - 1].lng)) {
+        routePoints.push(vehicleNow);
+    }
+    // A cancelled order has no route worth drawing: the vehicle was released
+    // and the plan is dead. Showing markers (pickup/destination/stations) is
+    // honest; a stray line stitched from leftover event coordinates is not.
+    const showRoute = tracking?.status !== 'CANCELLED' && routePoints.length > 1;
+
+    // Split the planned route into "already travelled" (solid, darker) and
+    // "still ahead" (dashed, lighter) so the user can see live progress.
+    // Anchor the split at the vehicle's live position when we have it; otherwise
+    // fall back to progressPercent projected onto the polyline arc length.
+    const splitRoute = (pts, veh, progress, stage) => {
+        if (!pts || pts.length < 2) return { traveledPoints: [], remainingPoints: pts ?? [] };
+        if (veh) {
+            // The loop polyline is station → pickup → dropoff → station, so the
+            // FIRST and LAST vertices share the same station coordinates — and
+            // for straight-line (drone) routes the outbound and return legs can
+            // also run close/parallel. A global nearest-vertex search can then
+            // lock onto the WRONG leg (e.g. the identical station vertex at the
+            // END of the polyline while the vehicle just left it at the start),
+            // which paints the whole loop solid. Restrict the search to the leg
+            // the vehicle is actually on, using the pickup/dropoff coordinates
+            // as leg boundaries.
+            let lo = 0;
+            let hi = pts.length - 1;
+            // Leg boundaries. The road-network polyline is SNAPped to the
+            // street grid: the junction vertices where the three legs meet are
+            // the router's snapped coordinates, which can differ from the raw
+            // pickup/destination coords by tens of meters (measured ~0.0005 deg
+            // against OSRM). An exact-match findIndex therefore silently fails
+            // for ROBOT routes (it only ever worked for the straight-line
+            // drone geometry), the leg restriction below is skipped, and the
+            // global nearest-vertex search locks back onto the OUTBOUND leg
+            // while the vehicle returns — re-painting the already-delivered
+            // leg as dashed. Pick the NEAREST vertex instead, with a generous
+            // sanity radius (~0.001 deg ≈ 100 m, squared) before degrading.
+            const nearestTo = (q) => {
+                let idx = -1;
+                let best = Infinity;
+                for (let i = 0; i < pts.length; i++) {
+                    const d = (pts[i].lat - q.lat) ** 2 + (pts[i].lng - q.lng) ** 2;
+                    if (d < best) { best = d; idx = i; }
+                }
+                return best < 1e-6 ? idx : -1;
+            };
+            const iP = pickupPoint ? nearestTo(pickupPoint) : -1;
+            const iD = destinationPoint ? nearestTo(destinationPoint) : -1;
+            if (stage === 'TO_PICKUP' && iP > 0) hi = iP;
+            else if (stage === 'TO_DROPOFF' && iP > 0 && iD > iP) { lo = iP; hi = iD; }
+            else if (stage === 'RETURNING' && iD > 0 && iD < pts.length - 1) lo = iD;
+            // Split at the point ON the polyline closest to the vehicle
+            // (project veh onto every segment of the leg), NOT at the nearest
+            // VERTEX. Vertex snapping quantizes the boundary to polyline
+            // vertices — fine for the dense OSRM geometry (vertices every few
+            // meters) but badly wrong for straight-line drone legs, which have
+            // only their two endpoints as vertices: mid-leg the boundary
+            // snapped to the leg's far end, the dashed remainder collapsed to
+            // a single un-drawable point, and the whole loop painted solid
+            // with the marker stranded mid-line. Projection puts the solid /
+            // dashed boundary exactly under the marker at any position.
+            if (hi <= lo) {
+                return { traveledPoints: pts.slice(0, lo + 1), remainingPoints: [veh, ...pts.slice(lo + 1)] };
+            }
+            let segIdx = lo;
+            let proj = pts[lo];
+            let bestD = Infinity;
+            for (let i = lo; i < hi; i++) {
+                const a = pts[i];
+                const b = pts[i + 1];
+                const abLat = b.lat - a.lat;
+                const abLng = b.lng - a.lng;
+                const len2 = abLat * abLat + abLng * abLng;
+                let t = len2 > 0 ? ((veh.lat - a.lat) * abLat + (veh.lng - a.lng) * abLng) / len2 : 0;
+                t = Math.max(0, Math.min(1, t));
+                const p = { lat: a.lat + abLat * t, lng: a.lng + abLng * t };
+                const d = (p.lat - veh.lat) ** 2 + (p.lng - veh.lng) ** 2;
+                if (d < bestD) {
+                    bestD = d;
+                    segIdx = i;
+                    proj = p;
+                }
+            }
+            return {
+                traveledPoints: [...pts.slice(0, segIdx + 1), proj],
+                // Start the dashed remainder at the projected split point, not at
+                // the nearest polyline vertex. The vehicle coordinate is an
+                // interpolated point that sits BETWEEN two vertices, so drawing
+                // the dash from the vertex would leave the marker straddling the
+                // solid/dashed boundary. Anchoring both ends at `proj` pins the
+                // marker exactly on the boundary.
+                remainingPoints: [proj, ...pts.slice(segIdx + 1)],
+            };
+        }
+        const frac = Number(progress);
+        if (Number.isFinite(frac) && frac > 0 && frac < 100) {
+            const seg = [];
+            let total = 0;
+            for (let i = 1; i < pts.length; i++) {
+                seg.push(Math.hypot(pts[i].lat - pts[i - 1].lat, pts[i].lng - pts[i - 1].lng));
+                total += seg[seg.length - 1];
+            }
+            let target = total * (frac / 100);
+            let acc = 0;
+            let idx = 0;
+            for (let i = 0; i < seg.length; i++) {
+                if (acc + seg[i] >= target) {
+                    idx = i;
+                    break;
+                }
+                acc += seg[i];
+                idx = i;
+            }
+            return { traveledPoints: pts.slice(0, idx + 1), remainingPoints: pts.slice(idx) };
+        }
+        return { traveledPoints: [], remainingPoints: pts };
+    };
+    const { traveledPoints, remainingPoints } = isDelivered
+        ? { traveledPoints: routePoints, remainingPoints: [] }
+        : splitRoute(routePoints, vehicleNow, tracking?.progressPercent, tracking?.currentStage);
     const progress = deliveryProgress(tracking?.progressPercent);
     const authed = isAuthed();
 
@@ -208,11 +403,26 @@ export default function GuestTrack() {
             {tracking && (
                 <Card
                     style={{ borderRadius: 14, boxShadow: CARD_SHADOW }}
-                    title={<Space><span>Order {tracking.orderId}</span><StatusBadge status={tracking.status} /></Space>}
-                    extra={tracking.vehicleType ? (<Space size={6}><VehicleIcon vehicle={tracking.vehicleType} />{tracking.vehicleType}</Space>) : null}
+                    title={<Space><span>Order {tracking.orderNumber ?? tracking.orderId}</span><StatusBadge status={tracking.status} /></Space>}
+                    extra={(
+                        <Space size={10}>
+                            {tracking.vehicleType ? (<Space size={6}><VehicleIcon vehicle={tracking.vehicleType} />{tracking.vehicleType}</Space>) : null}
+                            {canCancel && (
+                                <Popconfirm
+                                    title="Cancel this order?"
+                                    description="Free before the vehicle departs; a $2.50 dispatch fee applies once it is en route to pickup."
+                                    okText="Cancel order"
+                                    okButtonProps={{ danger: true }}
+                                    onConfirm={doCancel}
+                                >
+                                    <Button danger size="small" loading={cancelBusy}>Cancel</Button>
+                                </Popconfirm>
+                            )}
+                        </Space>
+                    )}
                 >
                     <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                        <StatusTimeline status={tracking.status} />
+                        <StatusTimeline status={tracking.status} events={events} currentStage={tracking.currentStage} />
 
                         <div>
                             <Progress
@@ -231,8 +441,16 @@ export default function GuestTrack() {
                             </Descriptions.Item>
                         </Descriptions>
 
-                        {hasPosition ? (
-                            <MapView vehicle={{ lat: Number(tracking.currentLat), lng: Number(tracking.currentLng) }} height={320} />
+                        {hasPosition || pickupPoint || destinationPoint ? (
+                            <MapView
+                                pickup={pickupPoint}
+                                destination={destinationPoint}
+                                stations={stations}
+                                route={showRoute ? remainingPoints : undefined}
+                                traveled={showRoute ? traveledPoints : undefined}
+                                vehicle={vehicleNow ? { ...vehicleNow, type: tracking.vehicleType, code: tracking.vehicleCode } : undefined}
+                                height={360}
+                            />
                         ) : (
                             <Alert type="info" showIcon message="Location will appear once the vehicle is on the move." />
                         )}

@@ -20,6 +20,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -38,6 +40,10 @@ import java.util.stream.Collectors;
  *   1. 载荷准入：包裹重量 / 体积不超过载具最大载荷（VIP 宽免 10%）
  *   2. 续航准入：闭环总里程不超过「续航 × 最大速度」的 90%（10% 续航冗余）
  *   3. 电量准入：载重加权预测耗电 ≤ 90% 且到站后剩余电量 ≥ 10%
+ *
+ * 候选池为站内「待命 + 充电」的载具：充电中的载具只要当前电量扣除全程耗电后仍 ≥ 10%
+ * 即可被临时抽调派单（充电可随时中断）。同类型准入全部满足时，优先派电量最低的一台，
+ * 让电量高的留在站里待命，均衡整队电量。
  */
 @Service
 @RequiredArgsConstructor
@@ -47,6 +53,10 @@ public class RecommendationService {
     private final StationRepository stationRepository;
     private final VehicleRepository vehicleRepository;
     private final RouteService routeService;
+
+    /** 派单候选状态：待命与充电中的载具都可被抽调。 */
+    public static final List<VehicleStatus> DISPATCHABLE_STATUSES =
+            Collections.unmodifiableList(Arrays.asList(VehicleStatus.IDLE, VehicleStatus.CHARGING));
 
     /** 计价模型（类型级，与《说明书》2.4 一致） */
     private static final Pricing DRONE_PRICING = new Pricing("15.00", "1.80", "2.00");
@@ -67,6 +77,17 @@ public class RecommendationService {
     private static final BigDecimal VIP_DISCOUNT_RATE = new BigDecimal("0.10"); // VIP 额外 9 折
 
     /**
+     * 载重对能耗的加权系数：空载为 1.0，满载为 1 + LOAD_WEIGHT_FACTOR_SPAN。
+     * 派单准入与行程实际扣电共用同一系数，保证「预测耗电」与「真实耗电」一致。
+     */
+    public static double loadWeightFactor(double packageWeight, double maxWeight) {
+        if (maxWeight <= 0) {
+            return 1.0;
+        }
+        return 1.0 + (packageWeight / maxWeight) * LOAD_WEIGHT_FACTOR_SPAN;
+    }
+
+    /**
      * Calculates the minimum initial battery level required for a vehicle to execute
      * the closed-loop delivery and retain at least MIN_RESERVE_BATTERY_PERCENT (10%) safety reserve.
      */
@@ -78,14 +99,14 @@ public class RecommendationService {
         double energyRate = vehicleType.getEnergyRatePercentPerKm().doubleValue();
         double weight = packageWeight != null ? packageWeight.doubleValue() : 1.5;
         double maxWeight = vehicleType.getDefaultMaxWeight().doubleValue();
-        double weightFactor = 1.0 + (weight / maxWeight) * LOAD_WEIGHT_FACTOR_SPAN;
+        double weightFactor = loadWeightFactor(weight, maxWeight);
         double energyDelta = distance * energyRate * weightFactor;
         double minRequired = energyDelta + MIN_RESERVE_BATTERY_PERCENT;
         return BigDecimal.valueOf(minRequired).setScale(2, RoundingMode.HALF_UP);
     }
 
     public QuoteResponse generateRecommendations(QuoteRequest request, User currentUser) {
-        boolean isVip = currentUser != null && currentUser.getRole() == Role.VIP;
+        boolean isVip = currentUser != null && currentUser.isVip();
         List<Station> stations = stationRepository.findAll();
         List<PlanOptionDto> options = new ArrayList<>();
 
@@ -177,12 +198,12 @@ public class RecommendationService {
 
     /**
      * 对某站点某类型载具做全量准入筛选，返回可用载具数与被选中的那台。
-     * 无任何载具通过准入时返回 null。
+     * 无任何载具通过准入时返回 null。候选含待命与充电中的载具。
      */
     private Candidate evaluate(QuoteRequest req, Station station, VehicleType type, boolean isVip) {
-        List<Vehicle> idle = vehicleRepository.findByStationIdAndVehicleTypeAndStatus(
-                station.getId(), type, VehicleStatus.IDLE);
-        if (idle.isEmpty()) {
+        List<Vehicle> candidates = vehicleRepository.findByStationIdAndVehicleTypeAndStatusIn(
+                station.getId(), type, DISPATCHABLE_STATUSES);
+        if (candidates.isEmpty()) {
             return null;
         }
 
@@ -201,7 +222,7 @@ public class RecommendationService {
         double energyRate = type.getEnergyRatePercentPerKm().doubleValue();
 
         List<Vehicle> admissible = new ArrayList<>();
-        for (Vehicle v : idle) {
+        for (Vehicle v : candidates) {
             double maxWeight = v.getMaxWeight().doubleValue();
             double maxVolume = v.getMaxVolume().doubleValue();
             if (maxWeight <= 0 || maxVolume <= 0) {
@@ -220,7 +241,7 @@ public class RecommendationService {
             }
 
             // 3. 电量准入（全程载重加权预测耗电，到站后须留 ≥ 10% 安全电量）
-            double weightFactor = 1.0 + (weight / maxWeight) * LOAD_WEIGHT_FACTOR_SPAN;
+            double weightFactor = loadWeightFactor(weight, maxWeight);
             double energyDelta = distance * energyRate * weightFactor;
             if (energyDelta > MAX_ENERGY_DELTA_PERCENT) {
                 continue;
@@ -240,8 +261,9 @@ public class RecommendationService {
         candidate.station = station;
         candidate.closedDistance = closedDistance;
         candidate.admissibleCount = admissible.size();
+        // 起点、终点、站点已定的前提下，优先派电量最低的一台，让高电量载具留站兜底
         candidate.planned = admissible.stream()
-                .max(Comparator.comparing(Vehicle::getBatteryLevel))
+                .min(Comparator.comparing(Vehicle::getBatteryLevel))
                 .orElse(admissible.get(0));
         return candidate;
     }

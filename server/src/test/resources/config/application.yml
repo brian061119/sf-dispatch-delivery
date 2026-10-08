@@ -5,3 +5,8 @@ wedelivery:
     # The background tick would advance orders and vehicles while a test is
     # asserting on them; tests that need a tick call SimulationService.tick().
     auto-tick: false
+  routing:
+    # Tests must never call the public OSRM demo server: it would make the suite
+    # depend on the network and on third-party rate limits. Use the offline
+    # straight-line provider instead so distance assertions stay deterministic.
+    provider: haversine

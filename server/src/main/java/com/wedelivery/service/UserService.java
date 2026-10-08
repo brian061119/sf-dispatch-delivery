@@ -36,6 +36,8 @@ public class UserService {
                 .username(user.getUsername())
                 .email(user.getEmail())
                 .role(user.getRole().name())
+                .isVip(user.isVip())
+                .vipExpireAt(user.getVipExpireAt())
                 .build();
 
         return AuthResponse.builder()
@@ -79,6 +81,8 @@ public class UserService {
                 .username(user.getUsername())
                 .email(user.getEmail())
                 .role(user.getRole().name())
+                .isVip(user.isVip())
+                .vipExpireAt(user.getVipExpireAt())
                 .build();
 
         return AuthResponse.builder()

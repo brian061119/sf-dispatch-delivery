@@ -21,6 +21,9 @@ public class Vehicle {
     /** Location code: not at any station (in delivery / parked off-station) */
     public static final int LOCATION_NOT_AT_STATION = 0;
 
+    /** Full battery level (%). */
+    public static final BigDecimal FULL_BATTERY = new BigDecimal("100.00");
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -109,6 +112,16 @@ public class Vehicle {
     /** Returns true if vehicle is docked at a station (location code 1/2/3) */
     public boolean isAtStation() {
         return locationCode != null && locationCode > LOCATION_NOT_AT_STATION;
+    }
+
+    /**
+     * 停回站点后的默认状态：电量未满即 CHARGING（由模拟器逐 tick 补电，充满再转 IDLE），满电则直接 IDLE。
+     * 充电需要时间，故返站不会瞬间回满待命。
+     */
+    public VehicleStatus restingStatus() {
+        return batteryLevel != null && batteryLevel.compareTo(FULL_BATTERY) < 0
+                ? VehicleStatus.CHARGING
+                : VehicleStatus.IDLE;
     }
 
 

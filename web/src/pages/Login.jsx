@@ -19,7 +19,7 @@ export default function Login() {
 
     try {
       await login(values.username, values.password);
-      navigate("/dashboard");
+      navigate(useAuth.getState().role === "ADMIN" ? "/admin" : "/dashboard", { replace: true });
     } catch (err) {
       console.error("Login failed:", err);
 

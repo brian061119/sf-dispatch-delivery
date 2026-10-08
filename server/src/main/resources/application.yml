@@ -43,6 +43,18 @@ jwt:
 
 # demo 模拟器定时推进（SimulationScheduler）
 wedelivery:
+  ai:
+    api-key: ${GEMINI_API_KEY:}
+    model: ${GEMINI_MODEL:gemini-3.8-flash}
+    base-url: https://generativelanguage.googleapis.com/v1beta
   simulation:
     auto-tick: ${SIMULATION_AUTO_TICK:true}
     tick-ms: ${SIMULATION_TICK_MS:10000}
+  routing:
+    # osrm     = 接真实路网（公共 OSRM demo 服务器，免费无需 key），地面机器人沿街道行驶
+    # haversine = 纯直线估算（离线可用，机器人会横穿房屋）
+    # OSRM 请求失败/超时会自动退回直线，不会让下单或追踪报错。
+    provider: ${ROUTING_PROVIDER:osrm}
+    osrm-base-url: ${OSRM_BASE_URL:https://router.project-osrm.org}
+    enabled: ${ROUTING_ENABLED:true}
+
