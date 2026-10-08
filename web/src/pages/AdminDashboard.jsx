@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Button, Card, Col, Progress, Row, Space, Spin, Statistic, Table, Tag, Typography } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
-import { Link } from "react-router-dom";
 import { getAdminDashboard } from "../api/admin";
 import { StatusBadge } from "../components/StatusBadge";
 import { VehicleIcon } from "../components/VehicleIcon";
@@ -136,7 +135,7 @@ export default function AdminDashboard() {
           dataSource={data.recentOrders ?? []}
           locale={{ emptyText: "No orders yet" }}
           columns={[
-            { title: "Order", dataIndex: "orderNumber", render: (id) => <Link to={`/order/${id}`}>{id}</Link> },
+            { title: "Order", dataIndex: "orderNumber", render: (id) => <Text strong>{id}</Text> },
             { title: "Customer", dataIndex: "customerUsername" },
             { title: "Station", dataIndex: "stationName", render: (v) => v?.replace(/^Station \d+ - /, "") ?? "—" },
             { title: "Vehicle", render: (_, o) => o.vehicleType ? <Space size={6}><VehicleIcon vehicle={o.vehicleType} />{o.vehicleCode ?? o.vehicleType}</Space> : "—" },
