@@ -353,3 +353,29 @@ export async function getAdminDashboard() {
         })),
     };
 }
+
+// Admin user list / user view (mirror GET /api/admin/users and /api/admin/users/:id).
+const mockUsers = [
+    { id: 1, username: 'admin', firstName: 'System', lastName: 'Admin', email: 'admin@wedelivery.com', role: 'ADMIN', isVip: false, vipExpireAt: null, createdAt: hourAgo(720) },
+    { id: 2, username: 'vip_user', firstName: 'Vivian', lastName: 'Lee', email: 'vip@gmail.com', role: 'VIP', isVip: true, vipExpireAt: '2027-12-31T23:59:59', createdAt: hourAgo(500) },
+    { id: 3, username: 'normal_user', firstName: 'Noah', lastName: 'Kim', email: 'normal@gmail.com', role: 'USER', isVip: false, vipExpireAt: null, createdAt: hourAgo(300) },
+];
+const mockUserOrders = (userId) => (userId === 3 ? orders : []).map((o) => ({
+    orderNumber: o.orderId, trackingCode: o.trackingCode, status: o.status, detailStatus: o.detailStatus,
+    vehicleType: o.vehicleType, pickupAddress: 'Market St', dropoffAddress: 'Mission St',
+    finalPrice: o.estimatedCost, createdAt: o.createdAt, actualDeliveryTime: o.status === 'DELIVERED' ? o.createdAt : null,
+}));
+const withCounts = (u) => {
+    const list = mockUserOrders(u.id);
+    return { ...u, orderCount: list.length, activeOrderCount: list.filter((o) => o.status === 'PENDING' || o.status === 'IN_TRANSIT').length };
+};
+export async function getAdminUsers() {
+    await latency();
+    return mockUsers.map(withCounts);
+}
+export async function getAdminUser(userId) {
+    await latency();
+    const user = mockUsers.find((u) => String(u.id) === String(userId));
+    if (!user) throw Object.assign(new Error('User not found'), { response: { status: 404, data: { message: `User not found: ${userId}` } } });
+    return { user: withCounts(user), orders: mockUserOrders(user.id) };
+}

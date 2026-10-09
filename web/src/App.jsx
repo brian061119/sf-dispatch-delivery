@@ -5,6 +5,7 @@ import { AppHeader } from "./components/AppHeader";
 import { useAuth } from "./store/auth";
 import { getRole, isAuthed } from "./lib/auth";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminUserDetail from "./pages/AdminUserDetail";
 import Dashboard from "./pages/Dashboard";
 import GuestTrack from "./pages/GuestTrack";
 import Login from "./pages/Login";
@@ -89,6 +90,14 @@ export default function App() {
             element={
               <RequireAdmin>
                 <AdminDashboard />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="/admin/users/:userId"
+            element={
+              <RequireAdmin>
+                <AdminUserDetail />
               </RequireAdmin>
             }
           />

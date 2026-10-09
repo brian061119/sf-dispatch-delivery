@@ -189,6 +189,16 @@ Both need login (401 without). Answers come from Gemini plus `server/src/main/re
 - Addresses are only filled in when they include a house number. Otherwise they're listed in `missingFields`.
 - Empty `message` / `text` → 400. Gemini errors → **503** with a readable `message`; show it and let the user use the wizard instead.
 
+### 4.13 Admin: users (2026-10-08, `guoqing`)
+Admin only (no token → 401, customer → 403). Read-only; responses never include password data.
+
+| Endpoint | Response |
+|---|---|
+| `GET /api/admin/users` | `[{id, username, firstName, lastName, email, role, isVip, vipExpireAt, createdAt, orderCount, activeOrderCount}]`, sorted by `id`. `activeOrderCount` = orders not `DELIVERED` / `CANCELLED` |
+| `GET /api/admin/users/:userId` | `{user: <same as a list item>, orders: [{orderNumber, trackingCode, status (4-state), detailStatus (6-state), vehicleType, pickupAddress, dropoffAddress, finalPrice, createdAt, actualDeliveryTime}]}`, orders newest first. Unknown id → 404 |
+
+UI: the **Users** table on `/admin` (search, sort by order count); clicking a username opens `/admin/users/:userId`. Order details are shown inline there because customer pages (`/order/:id`, `/track`) redirect admins back to `/admin`.
+
 ## 5. Known backend bug affecting the frontend
 
 **Malformed requests return 500 instead of 400/405/415** (partly fixed; re-verified 2026-10-08).

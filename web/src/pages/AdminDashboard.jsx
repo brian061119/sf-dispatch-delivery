@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Button, Card, Col, Progress, Row, Space, Spin, Statistic, Table, Tag, Typography } from "antd";
-import { ReloadOutlined } from "@ant-design/icons";
-import { getAdminDashboard } from "../api/admin";
+import { Alert, Button, Card, Col, Input, Progress, Row, Space, Spin, Statistic, Table, Tag, Typography } from "antd";
+import { ReloadOutlined, SearchOutlined } from "@ant-design/icons";
+import { Link } from "react-router-dom";
+import { getAdminDashboard, getAdminUsers } from "../api/admin";
 import { StatusBadge } from "../components/StatusBadge";
 import { VehicleIcon } from "../components/VehicleIcon";
 import { apiErrorMessage } from "../lib/http";
@@ -38,6 +39,8 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [updatedAt, setUpdatedAt] = useState(null);
+  const [users, setUsers] = useState(null);
+  const [usersError, setUsersError] = useState("");
   const liveRef = useRef(true);
 
   // A failed background refresh keeps the last good data on screen and shows
@@ -50,6 +53,14 @@ export default function AdminDashboard() {
       setData(d);
       setError("");
       setUpdatedAt(new Date());
+      // Loaded separately so a failing user list (e.g. an older backend
+      // without /api/admin/users) never takes the rest of the console down.
+      try {
+        const u = await getAdminUsers();
+        if (liveRef.current) { setUsers(u); setUsersError(""); }
+      } catch (err) {
+        if (liveRef.current) setUsersError(apiErrorMessage(err, "Unable to load users."));
+      }
     } catch (err) {
       if (!liveRef.current) return;
       if (err?.response?.status === 403) setForbidden(true);
@@ -145,6 +156,8 @@ export default function AdminDashboard() {
           ]}
         />
       </Card>
+
+      <UsersCard users={users} error={usersError} />
     </div>
   );
 }
@@ -164,6 +177,66 @@ function StationTotals({ stations }) {
       <Table.Summary.Cell index={7} align="center"><Text strong>{vehicles.length}</Text></Table.Summary.Cell>
       <Table.Summary.Cell index={8} align="center"><Text type="secondary">{bays}</Text></Table.Summary.Cell>
     </Table.Summary.Row>
+  );
+}
+
+// Users: every account with its order count. Clicking a username opens the
+// read-only user view (/admin/users/:id); the admin stays logged in as admin.
+const ROLE_COLOR = { ADMIN: "geekblue", VIP: "gold", USER: "default" };
+
+function UsersCard({ users, error }) {
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const rows = (users ?? []).filter((u) => !q || [u.username, u.email, u.firstName, u.lastName].some((v) => v?.toLowerCase().includes(q)));
+  return (
+    <Card
+      title={`Users${users ? ` (${users.length})` : ""}`}
+      extra={<Input allowClear size="small" prefix={<SearchOutlined />} placeholder="Search name or email" value={query} onChange={(e) => setQuery(e.target.value)} style={{ width: 220 }} />}
+      style={{ borderRadius: 12, marginTop: 24 }}
+    >
+      {error && <Alert type="warning" showIcon message={error} style={{ marginBottom: 12 }} />}
+      <Table
+        rowKey="id"
+        size="middle"
+        loading={!users && !error}
+        pagination={{ pageSize: 10, hideOnSinglePage: true }}
+        scroll={{ x: 720 }}
+        dataSource={rows}
+        locale={{ emptyText: q ? "No users match your search" : "No users" }}
+        columns={[
+          { title: "ID", dataIndex: "id", width: 70, sorter: (a, b) => a.id - b.id },
+          {
+            title: "User",
+            dataIndex: "username",
+            sorter: (a, b) => a.username.localeCompare(b.username),
+            render: (name, u) => {
+              const fullName = [u.firstName, u.lastName].filter(Boolean).join(" ");
+              return (
+                <Space direction="vertical" size={0}>
+                  <Link to={`/admin/users/${u.id}`}><strong>{name}</strong></Link>
+                  {fullName && <Text type="secondary">{fullName}</Text>}
+                </Space>
+              );
+            },
+          },
+          { title: "Email", dataIndex: "email", render: (v) => v || "—" },
+          {
+            title: "Role",
+            dataIndex: "role",
+            render: (role, u) => <Space size={4}><Tag color={ROLE_COLOR[role] ?? "default"}>{role}</Tag>{role === "VIP" && !u.isVip && <Tag>expired</Tag>}</Space>,
+          },
+          {
+            title: "Orders",
+            dataIndex: "orderCount",
+            align: "center",
+            defaultSortOrder: "descend",
+            sorter: (a, b) => a.orderCount - b.orderCount,
+            render: (n, u) => <Space size={6}><Text strong>{n}</Text>{u.activeOrderCount > 0 && <Text type="secondary">· {u.activeOrderCount} active</Text>}</Space>,
+          },
+          { title: "Joined", dataIndex: "createdAt", render: (v) => (v ? new Date(v).toLocaleDateString() : "—") },
+        ]}
+      />
+    </Card>
   );
 }
 
