@@ -2,6 +2,7 @@ import { Layout } from "antd";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AiAssistant } from "./components/AiAssistant";
 import { AppHeader } from "./components/AppHeader";
+import { useAuth } from "./store/auth";
 import { getRole, isAuthed } from "./lib/auth";
 import AdminDashboard from "./pages/AdminDashboard";
 import Dashboard from "./pages/Dashboard";
@@ -12,13 +13,14 @@ import OrderHistory from "./pages/OrderHistory";
 import OrderWizard from "./pages/OrderWizard";
 import Register from "./pages/Register";
 import VipMembership from "./pages/VipMembership";
-function RequireAuth({ children }) {
+function RequireCustomer({ children }) {
   // social-ai style: the frontend trusts token PRESENCE (any string counts) —
   // the backend is the one that validates it on real API calls.
   // PUBLIC routes (never guarded): /login, /register, /track (incl. ?code=)
   if (!isAuthed()) {
     return <Navigate to="/login" replace />;
   }
+  if (getRole() === "ADMIN") return <Navigate to="/admin" replace />;
   return <>{children}</>;
 }
 function RequireAdmin({ children }) {
@@ -29,6 +31,9 @@ function RequireAdmin({ children }) {
   return <>{children}</>;
 }
 export default function App() {
+  const { token, role } = useAuth();
+  const isAdmin = !!token && role === "ADMIN";
+  const home = token ? (isAdmin ? "/admin" : "/dashboard") : "/track";
   return (
     <Layout style={{ minHeight: "100vh", background: "#f4f6f8" }}>
       <AppHeader />
@@ -36,47 +41,47 @@ export default function App() {
         style={{ padding: 24, maxWidth: 1100, margin: "0 auto", width: "100%" }}
       >
         <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/track" element={<GuestTrack />} />
+          <Route path="/login" element={isAdmin ? <Navigate to="/admin" replace /> : <Login />} />
+          <Route path="/register" element={isAdmin ? <Navigate to="/admin" replace /> : <Register />} />
+          <Route path="/track" element={isAdmin ? <Navigate to="/admin" replace /> : <GuestTrack />} />
           <Route
             path="/dashboard"
             element={
-              <RequireAuth>
+              <RequireCustomer>
                 <Dashboard />
-              </RequireAuth>
+              </RequireCustomer>
             }
           />
           <Route
             path="/orders"
             element={
-              <RequireAuth>
+              <RequireCustomer>
                 <OrderHistory />
-              </RequireAuth>
+              </RequireCustomer>
             }
           />
           <Route
             path="/order/new"
             element={
-              <RequireAuth>
+              <RequireCustomer>
                 <OrderWizard />
-              </RequireAuth>
+              </RequireCustomer>
             }
           />
           <Route
             path="/order/:orderId"
             element={
-              <RequireAuth>
+              <RequireCustomer>
                 <OrderDetail />
-              </RequireAuth>
+              </RequireCustomer>
             }
           />
           <Route
             path="/vip"
             element={
-              <RequireAuth>
+              <RequireCustomer>
                 <VipMembership />
-              </RequireAuth>
+              </RequireCustomer>
             }
           />
           <Route
@@ -94,12 +99,12 @@ export default function App() {
           <Route
             path="*"
             element={
-              <Navigate to={isAuthed() ? "/dashboard" : "/track"} replace />
+              <Navigate to={home} replace />
             }
           />
         </Routes>
       </Layout.Content>
-      <AiAssistant />
+      {!isAdmin && <AiAssistant />}
     </Layout>
   );
 }

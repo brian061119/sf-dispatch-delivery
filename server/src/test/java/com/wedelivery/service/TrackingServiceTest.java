@@ -119,7 +119,7 @@ class TrackingServiceTest {
     @Test
     void trackOrder_backfillsEverySkippedStage_whenFirstPollLandsLate() {
         setUp();
-        when(orderRepository.findByOrderNumber(ORDER_NUMBER)).thenReturn(Optional.of(buildLateOrder()));
+        when(orderRepository.findByOrderNumberForUpdate(ORDER_NUMBER)).thenReturn(Optional.of(buildLateOrder()));
         when(stationRepository.findById(STATION_ID)).thenReturn(Optional.of(buildStation()));
         when(vehicleRepository.findById(VEHICLE_ID)).thenReturn(Optional.of(buildVehicle()));
         // Nobody ever polled before: no milestones exist yet for this order.
@@ -148,7 +148,7 @@ class TrackingServiceTest {
     @Test
     void trackOrder_doesNotReinsertStagesAlreadyRecorded() {
         setUp();
-        when(orderRepository.findByOrderNumber(ORDER_NUMBER)).thenReturn(Optional.of(buildLateOrder()));
+        when(orderRepository.findByOrderNumberForUpdate(ORDER_NUMBER)).thenReturn(Optional.of(buildLateOrder()));
         when(stationRepository.findById(STATION_ID)).thenReturn(Optional.of(buildStation()));
         when(vehicleRepository.findById(VEHICLE_ID)).thenReturn(Optional.of(buildVehicle()));
 

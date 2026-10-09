@@ -286,14 +286,30 @@ public class OrderService {
             throw new IllegalStateException("Cannot confirm receipt for a cancelled order.");
         }
 
+        // Receipt can only be confirmed once the package has reached the drop-off point.
+        // 用秒数判定而不是写死的比例：estimatedDeliveryTime 现在表示「包裹送达时刻」，
+        // 送达窗口走完才允许签收（旧的 0.75 会让人在包裹还在路上时就签收）。
+        TripTimeline timeline = tripTimeline(order);
+        long elapsedSeconds = elapsedTripSeconds(order);
+        if (order.getStatus() == OrderStatus.PENDING_PAYMENT
+                || timeline == null || elapsedSeconds < timeline.deliverySeconds) {
+            throw new IllegalStateException("The package has not been delivered yet. Receipt can only be confirmed after delivery.");
+        }
+
         order.setStatus(OrderStatus.DELIVERED);
         if (order.getActualDeliveryTime() == null) {
             order.setActualDeliveryTime(LocalDateTime.now());
         }
         orderRepository.save(order);
 
-        // Release vehicle back to its resting state: charge at station if not full, otherwise idle
-        if (order.getVehicleId() != null) {
+        // Release the vehicle back to its resting state (charge at station if not full, otherwise idle),
+        // but only once it is docked and still ours. A vehicle that is still driving back is left in
+        // IN_DELIVERY for the simulator to bring home; one already reassigned to a newer order is not touched.
+        boolean vehicleDocked = timeline != null && elapsedSeconds >= timeline.loopSeconds;
+        boolean vehicleReassigned = order.getVehicleId() != null
+                && orderRepository.existsByVehicleIdAndIdGreaterThanAndStatusNot(
+                        order.getVehicleId(), order.getId(), OrderStatus.CANCELLED);
+        if (order.getVehicleId() != null && vehicleDocked && !vehicleReassigned) {
             vehicleRepository.findById(order.getVehicleId()).ifPresent(v -> {
                 if (v.getStatus() == VehicleStatus.IN_DELIVERY) {
                     LocalDateTime now = LocalDateTime.now();
@@ -323,6 +339,65 @@ public class OrderService {
     }
 
     private static final BigDecimal DISPATCH_SERVICE_FEE = new BigDecimal("2.50");
+
+    /**
+     * Elapsed seconds of the scheduled trip, 0 when the schedule is missing or has not started yet.
+     */
+    private long elapsedTripSeconds(Order order) {
+        if (order.getScheduledStartTime() == null) {
+            return 0L;
+        }
+        return Math.max(0, Duration.between(order.getScheduledStartTime(), LocalDateTime.now()).getSeconds());
+    }
+
+    /** 一单配送的时间线：自 scheduledStartTime 起算，到达各里程碑所需的秒数。 */
+    private static final class TripTimeline {
+        final long pickupSeconds;
+        final long deliverySeconds;
+        final long loopSeconds;
+
+        TripTimeline(long pickupSeconds, long deliverySeconds, long loopSeconds) {
+            this.pickupSeconds = pickupSeconds;
+            this.deliverySeconds = deliverySeconds;
+            this.loopSeconds = loopSeconds;
+        }
+    }
+
+    /**
+     * 配送闭环的时间线：按「站→取件→送达→返站」的里程等比，把秒数分配到三个里程碑。
+     *
+     * <p>可否取消/改单、可否签收、可否释放车辆这三处判断<b>必须共用这一份算法</b>——各自写一份
+     * 比例常量正是之前语义漂移的来源：<code>estimatedDeliveryTime</code> 的语义从「车回站时刻」
+     * 改为「包裹送达时刻」之后，任何写死的 0.25 / 0.75 / 1.0 都会指向错误的时间点。
+     *
+     * <ul>
+     *   <li>{@code pickupSeconds} — 包裹上车，之后不可取消/改单</li>
+     *   <li>{@code deliverySeconds} — 包裹送到客户手上，之后才允许签收</li>
+     *   <li>{@code loopSeconds} — 车辆回到站点，之后才允许把车放回待命/充电</li>
+     * </ul>
+     *
+     * @return null when the order has no schedule or its station is gone (caller treats it as "nothing happened yet")
+     */
+    private TripTimeline tripTimeline(Order order) {
+        if (order.getScheduledStartTime() == null || order.getEstimatedDeliveryTime() == null
+                || order.getStationId() == null) {
+            return null;
+        }
+        Station station = stationRepository.findById(order.getStationId()).orElse(null);
+        if (station == null) {
+            return null;
+        }
+        BigDecimal sLat = station.getLatitude();
+        BigDecimal sLng = station.getLongitude();
+        BigDecimal pLat = Boolean.TRUE.equals(order.getIsStationPickup()) ? sLat : order.getPickupLat();
+        BigDecimal pLng = Boolean.TRUE.equals(order.getIsStationPickup()) ? sLng : order.getPickupLng();
+        double[] milestones = routeService.milestoneFractions(
+                sLat, sLng, pLat, pLng, order.getDropoffLat(), order.getDropoffLng(), order.getVehicleType());
+        long deliverySeconds = Math.max(60, Duration.between(
+                order.getScheduledStartTime(), order.getEstimatedDeliveryTime()).getSeconds());
+        long loopSeconds = Math.max(deliverySeconds, Math.round(deliverySeconds / milestones[1]));
+        return new TripTimeline(Math.round(loopSeconds * milestones[0]), deliverySeconds, loopSeconds);
+    }
 
     /**
      * Cancel order business closure:
@@ -924,26 +999,11 @@ public class OrderService {
         if (order.getStatus() == OrderStatus.IN_TRANSIT) {
             return true;
         }
-        if (order.getScheduledStartTime() == null || order.getEstimatedDeliveryTime() == null) {
+        TripTimeline timeline = tripTimeline(order);
+        if (timeline == null) {
             return false;
         }
-        Station station = stationRepository.findById(order.getStationId()).orElse(null);
-        if (station == null) {
-            return false;
-        }
-        BigDecimal sLat = station.getLatitude();
-        BigDecimal sLng = station.getLongitude();
-        BigDecimal pLat = Boolean.TRUE.equals(order.getIsStationPickup()) ? sLat : order.getPickupLat();
-        BigDecimal pLng = Boolean.TRUE.equals(order.getIsStationPickup()) ? sLng : order.getPickupLng();
-        double[] milestones = routeService.milestoneFractions(
-                sLat, sLng, pLat, pLng, order.getDropoffLat(), order.getDropoffLng(), order.getVehicleType());
-        long deliverySeconds = Math.max(60, Duration.between(
-                order.getScheduledStartTime(), order.getEstimatedDeliveryTime()).getSeconds());
-        long loopSeconds = Math.max(deliverySeconds, Math.round(deliverySeconds / milestones[1]));
-        long pickupSeconds = Math.round(loopSeconds * (double) milestones[0]);
-        long elapsedSeconds = Math.max(0, Duration.between(
-                order.getScheduledStartTime(), LocalDateTime.now()).getSeconds());
-        return elapsedSeconds >= Math.max(pickupSeconds, PICKUP_CANCELLATION_GRACE_SECONDS);
+        return elapsedTripSeconds(order) >= Math.max(timeline.pickupSeconds, PICKUP_CANCELLATION_GRACE_SECONDS);
     }
 
     private String generateTrackingCode() {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Alert, Button, Card, Col, Empty, Input, Row, Space, Spin, Typography } from "antd";
 import { Link, useNavigate } from "react-router-dom";
+import { apiErrorMessage } from "../lib/http";
 import { parseOrderText } from "../api/ai";
 import { StatusBadge } from "../components/StatusBadge";
 import { getUsername } from "../lib/auth";
@@ -37,9 +38,10 @@ export default function Dashboard() {
     setAiBusy(true); setError("");
     try {
       const draft = await parseOrderText(note);
-      wizard.prefill({ pkg: { description: draft.itemName || "", weightKg: draft.weight, fragile: !!draft.fragile } });
+      wizard.reset();
+      wizard.prefill(draft.prefill ?? { pkg: { description: draft.itemName || "", weightKg: draft.weight, fragile: !!draft.fragile } });
       navigate("/order/new");
-    } catch { setError("Could not read that request. You can still create a delivery manually."); }
+    } catch (err) { setError(apiErrorMessage(err, "Could not read that request. You can still create a delivery manually.")); }
     finally { setAiBusy(false); }
   }
   const activeOrders = list.filter(isActive);

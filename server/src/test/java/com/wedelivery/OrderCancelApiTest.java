@@ -329,7 +329,8 @@ class OrderCancelApiTest {
                         .content(reviewPayload))
                 .andExpect(status().isConflict());
 
-        // 2. Confirm receipt to transition to DELIVERED
+        // 2. Confirm receipt to transition to DELIVERED (only possible once the package is delivered)
+        markPackageDelivered(orderNumber);
         mvc.perform(patch("/api/orders/" + orderNumber + "/confirm-receipt")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk());
@@ -366,6 +367,7 @@ class OrderCancelApiTest {
         String orderNumber = createOrder(token);
 
         // Confirm delivery receipt
+        markPackageDelivered(orderNumber);
         mvc.perform(patch("/api/orders/" + orderNumber + "/confirm-receipt")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
@@ -413,6 +415,23 @@ class OrderCancelApiTest {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("CANCELLED"));
+    }
+
+    /** Moves the schedule into the past so the package counts as delivered (20-minute trip, 90% elapsed). */
+    /**
+     * 把订单推到「包裹已送达」的时间点。
+     *
+     * <p>窗口语义：<code>estimatedDeliveryTime</code> 距 <code>scheduledStartTime</code> 的这段，
+     * 是「出发 → 送到客户手上」，<b>不含</b>返站段。所以已过去的时间必须略大于整个窗口才算送到。
+     */
+    private static final long DELIVERY_WINDOW_MINUTES = 20;
+
+    private void markPackageDelivered(String orderNumber) {
+        Order order = orderRepository.findByOrderNumber(orderNumber).orElseThrow();
+        java.time.LocalDateTime start = java.time.LocalDateTime.now().minusMinutes(DELIVERY_WINDOW_MINUTES + 2);
+        order.setScheduledStartTime(start);
+        order.setEstimatedDeliveryTime(start.plusMinutes(DELIVERY_WINDOW_MINUTES));
+        orderRepository.save(order);
     }
 
     private String createOrder(String token) throws Exception {

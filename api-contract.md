@@ -346,3 +346,34 @@ tracking interpolation), walks orphaned `IN_DELIVERY` vehicles back to their sta
 All three seeded accounts (`admin`, `vip_user`, `normal_user`) use password `password123`. The BCrypt
 hash originally shipped in `data.sql` was a placeholder that did **not** match, which made
 `/api/auth/login` return 500 — corrected 2026-09-26.
+
+## AI delivery endpoints (2026-10-07)
+
+Both endpoints require a valid login JWT. The backend uses GEMINI_API_KEY and optional
+GEMINI_MODEL (default gemini-3.8-flash). Keys must never be supplied by the browser.
+
+### POST /api/ai/parse
+Request: `{ "text": "send a 2kg item from Market St to Mission St, fragile and express" }`.
+Response: `{ "prefill": { "pickup": { "line1": "Market St", "city": "San Francisco" }, "dropoff": { "line1": "Mission St", "city": "San Francisco" }, "pkg": { "description": "item", "weightKg": 2, "fragile": true }, "priority": "EXPRESS" }, "missingFields": ["pickupConfirmedLocation", "dropoffConfirmedLocation"], "mode": "gemini" }`.
+AI-extracted addresses are text drafts until the wizard verifies coordinates. Missing weight
+is omitted rather than defaulted. Dimensions are optional. Starting a draft clears prior
+wizard candidates/selection, preventing reuse of stale prices.
+
+### POST /api/ai/chat
+Request: `{ "message": "How much for a 2kg package?", "history": [{"role":"user","content":"..."}] }`.
+Response: `{ "reply": "...", "cards": [], "prefill": {} }` (`prefill` optional).
+Cards: `prefill` (package summary, review in wizard), `quote` (`candidates` from existing
+RecommendationService), `order` (order number, raw status, trackingCode and stage description).
+No price is included on an order card unless an authoritative price was queried.
+Insufficient/ambiguous locations produce a clarification and draft rather than fabricated prices.
+Tracking uses the user's random tracking code. The assistant does not create/pay/modify/cancel orders.
+No model-generated coordinates, prices or statuses are trusted. Errors: 400 invalid input,
+401 missing login, 503 missing key/provider permissions/quota/model/network failure (sanitized message).
+
+### Knowledge-grounded help update
+HELP returns Gemini's specific `reply`, grounded in the backend's curated
+`delivery-knowledge.md` context. Questions about how to cancel or whether cancellation is
+allowed are HELP; direct requests to execute cancellation are WRITE. Unknown intent or empty
+HELP output returns a provider error rather than a generic repeated capability list.
+Backend routing remains authoritative for QUOTE and TRACK; HELP must not assert live status,
+prices or successful writes. Source credentials and whole repository contents are not uploaded.

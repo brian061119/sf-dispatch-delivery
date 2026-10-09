@@ -5,7 +5,7 @@ import * as mock from './mock';
 // stub for the demo — the frontend only cares about this signature. Always degrade gracefully.
 export async function parseOrderText(text) {
     if (import.meta.env.VITE_MOCK === '1') return mock.parseOrderText(text);
-    const { data } = await http.post('/ai/parse', { text });
+    const { data } = await http.post('/ai/parse', { text }, { timeout: 60000 });
     return data;
 }
 // AI assistant (contract-external POST /api/ai/chat — proposed 2026-09-30).
@@ -16,6 +16,6 @@ export async function parseOrderText(text) {
 // Response: { reply, cards?: Array<{type:'order'|'quote'|'prefill', ...}>, prefill?: {...} }
 export async function sendChatMessage(body) {
     if (import.meta.env.VITE_MOCK === '1') return mock.sendChatMessage(body);
-    const { data } = await http.post('/ai/chat', body);
+    const { data } = await http.post('/ai/chat', body, { timeout: 60000 });
     return data;
 }
