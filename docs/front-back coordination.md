@@ -34,6 +34,7 @@ Every response shape and status code below was checked against the running backe
 | Mock mode | `VITE_MOCK=1` still works if the backend is down |
 | AI assistant | Set `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`, default `gemini-3.8-flash`) in the environment that starts the backend. Without it, `/api/ai/parse` returns 503 |
 | Road routing | `ROUTING_PROVIDER=osrm` (default) asks the public OSRM server for street routes, so it **needs internet**. If OSRM fails it falls back to straight lines. `ROUTING_PROVIDER=haversine` = straight lines, offline |
+| Password reset demo | `DEMO_SHOW_RESET_LINK=true` makes `/api/auth/forgot-password` return the reset link so `/forgot-password` can show it. **Demo only:** anyone who knows a username could then reset that account. Default `false`: the link is only in the backend log. `FRONTEND_BASE_URL` (default `http://localhost:3000`) sets the link's host. New table `password_reset_tokens` (created automatically locally; on AWS run the `CREATE TABLE` from `schema.sql`) |
 
 ---
 
@@ -59,6 +60,10 @@ Every response shape and status code below was checked against the running backe
 - `POST /api/auth/register` `{username, password, email?, firstName?, lastName?}` → `{token, user{id, username, email, role}}`. `role` in the request is **ignored** (always `USER`). Duplicate username/email → 400.
 - `POST /api/auth/login` `{username, password}` → same shape. Wrong password or unknown user → **401** `{"message": "Invalid username or password."}` (same message for both).
 - `GET /api/auth/me` → `{id, username, email, role, isVip, vipExpireAt}`. Login/register `user` has the same fields. `role` is `USER`, `VIP` or `ADMIN`; use `isVip` for VIP pricing and badges, because a `VIP` whose membership expired keeps `role: VIP` but gets `isVip: false`.
+- **Forgot password** (2026-10-08, `guoqing`; both public):
+  - `POST /api/auth/forgot-password` `{identifier}` (username or email, email is case-insensitive) → always **200** `{message}`, the same whether or not the account exists. A one-time link valid for 30 minutes is printed in the backend log (`[PASSWORD RESET]`), since there is no email service. In demo mode the response also has `resetLink`. Requesting a new link retires the previous one.
+  - `POST /api/auth/reset-password` `{token, newPassword}` (6–128 chars) → **200** `{message}`. Invalid, used or expired token → **400** `"This reset link is invalid or has expired..."`.
+  - UI: "Forgot password?" on `/login` → `/forgot-password` → link → `/reset-password?token=...`.
 - Send the token as `Authorization: Bearer <token>`. It expires after 24 h → the next call returns 401 → your interceptor sends the user to `/login`.
 
 ### 4.2 Stations (public)
@@ -173,7 +178,8 @@ JSON errors look like `{timestamp, status, error, message}`, plus `code` for pay
 | `POST /api/vip/subscribe` (login) | `{planType: "MONTHLY" \| "ANNUAL", paymentMethodId?}` | Same as status. Extends from the current expiry if already VIP |
 
 - **Benefits** (from `benefits[]`): 10% off every order, $2.50 cancellation fee waived, 2 modifications per order, +10% weight/volume tolerance, priority dispatch and high-battery vehicles.
-- **Known issues (B8, B9):** subscribing changes the user's role to `VIP`, so **an admin who subscribes loses admin access** (verified: `/api/admin/dashboard` → 403 afterwards). Any `planType` other than `ANNUAL` (even `"LIFETIME"`) is treated as monthly, and no payment is taken. **Hide the VIP subscribe button for admins** until B8 is fixed.
+- **Admins can't subscribe** (B8, fixed): `POST /api/vip/subscribe` → **409** for `ADMIN` accounts; their role is never changed.
+- **Known issue (B9):** any `planType` other than `ANNUAL` (even `"LIFETIME"`) is treated as monthly, and no payment is taken.
 - After subscribing, the existing token keeps working, and `/api/auth/me` returns the new `role` / `isVip` right away.
 
 ### 4.12 AI assistant (YuningZhang, `e8b366e`)
@@ -187,6 +193,16 @@ Both need login (401 without). Answers come from Gemini plus `server/src/main/re
 - **Without `GEMINI_API_KEY`:** `parse` → **503** `{"message": "GEMINI_API_KEY is missing..."}`. `chat` still answers simple package questions without Gemini (verified: "how much for a 2kg package?" → 200 asking for addresses), but anything that needs the model returns 503.
 - Addresses are only filled in when they include a house number. Otherwise they're listed in `missingFields`.
 - Empty `message` / `text` → 400. Gemini errors → **503** with a readable `message`; show it and let the user use the wizard instead.
+
+### 4.13 Admin: users (2026-10-08, `guoqing`)
+Admin only (no token → 401, customer → 403). Read-only; responses never include password data.
+
+| Endpoint | Response |
+|---|---|
+| `GET /api/admin/users` | `[{id, username, firstName, lastName, email, role, isVip, vipExpireAt, createdAt, orderCount, activeOrderCount}]`, sorted by `id`. `activeOrderCount` = orders not `DELIVERED` / `CANCELLED` |
+| `GET /api/admin/users/:userId` | `{user: <same as a list item>, orders: [{orderNumber, trackingCode, status (4-state), detailStatus (6-state), vehicleType, pickupAddress, dropoffAddress, finalPrice, createdAt, actualDeliveryTime}]}`, orders newest first. Unknown id → 404 |
+
+UI: the **Users** table on `/admin` (search, sort by order count); clicking a username opens `/admin/users/:userId`. Order details are shown inline there because customer pages (`/order/:id`, `/track`) redirect admins back to `/admin`.
 
 ## 5. Known backend bug affecting the frontend
 
@@ -209,7 +225,7 @@ Both need login (401 without). Answers come from Gemini plus `server/src/main/re
 | B5 | Decide logout (client-only is fine) and update `api-contract.md`. `POST /api/auth/logout` is still 404 | Remove the `/auth/logout` call |
 | B6 | ✅ **Done** (`9dca22b`, ty2610-Columbia, 2026-10-03; details in `docs/调度引擎变更-2026-10-03.md`). Stations ranked by distance to pickup + dropoff, with per-vehicle-type fallback to the next station (§4.3) | Fewer empty results; options can come from different stations |
 | B7 | **New:** modifying an off-peak order turns it into `BEST_VALUE`, moves its start to now and re-prices it (§4.10). Intended? If not, keep the plan type and scheduled start when only the package or address changes | If intended, warn the user in the modify dialog before saving |
-| B8 | **New (bug):** `POST /api/vip/subscribe` sets `role = VIP`, so an **admin who subscribes loses admin access** permanently (`VipService.subscribe`). Fix: keep `ADMIN` and track VIP only through `vipExpireAt`/`isVip`, or reject subscribe for admins | Until fixed, hide the subscribe button for admins |
+| B8 | ✅ **Fixed** (2026-10-08, `guoqing`): `POST /api/vip/subscribe` now refuses admin accounts with **409** `"Admin accounts can't subscribe to VIP..."`, so the role stays `ADMIN`. Before, it replaced `ADMIN` with `VIP` and locked the account out of the admin console. Test: `VipPrivilegesApiTest.adminCannotSubscribeAndKeepsAdminRole` | Admins already can't reach `/vip` (`RequireCustomer`, no header link); show the 409 `message` if it ever happens |
 | B9 | **New:** VIP subscribe accepts any `planType` (unknown values become monthly) and takes no payment. Validate `planType` (400 otherwise) and charge through the mock payment like orders | Show plan prices; handle 402 like checkout |
 
 ---
