@@ -7,12 +7,14 @@ import { getRole, isAuthed } from "./lib/auth";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminUserDetail from "./pages/AdminUserDetail";
 import Dashboard from "./pages/Dashboard";
+import ForgotPassword from "./pages/ForgotPassword";
 import GuestTrack from "./pages/GuestTrack";
 import Login from "./pages/Login";
 import OrderDetail from "./pages/OrderDetail";
 import OrderHistory from "./pages/OrderHistory";
 import OrderWizard from "./pages/OrderWizard";
 import Register from "./pages/Register";
+import ResetPassword from "./pages/ResetPassword";
 import VipMembership from "./pages/VipMembership";
 function RequireCustomer({ children }) {
   // social-ai style: the frontend trusts token PRESENCE (any string counts) —
@@ -44,6 +46,9 @@ export default function App() {
         <Routes>
           <Route path="/login" element={isAdmin ? <Navigate to="/admin" replace /> : <Login />} />
           <Route path="/register" element={isAdmin ? <Navigate to="/admin" replace /> : <Register />} />
+          {/* Public: forgot / reset password (the reset link carries a one-time token). */}
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/track" element={isAdmin ? <Navigate to="/admin" replace /> : <GuestTrack />} />
           <Route
             path="/dashboard"

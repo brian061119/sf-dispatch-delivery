@@ -34,6 +34,7 @@ Every response shape and status code below was checked against the running backe
 | Mock mode | `VITE_MOCK=1` still works if the backend is down |
 | AI assistant | Set `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`, default `gemini-3.8-flash`) in the environment that starts the backend. Without it, `/api/ai/parse` returns 503 |
 | Road routing | `ROUTING_PROVIDER=osrm` (default) asks the public OSRM server for street routes, so it **needs internet**. If OSRM fails it falls back to straight lines. `ROUTING_PROVIDER=haversine` = straight lines, offline |
+| Password reset demo | `DEMO_SHOW_RESET_LINK=true` makes `/api/auth/forgot-password` return the reset link so `/forgot-password` can show it. **Demo only:** anyone who knows a username could then reset that account. Default `false`: the link is only in the backend log. `FRONTEND_BASE_URL` (default `http://localhost:3000`) sets the link's host. New table `password_reset_tokens` (created automatically locally; on AWS run the `CREATE TABLE` from `schema.sql`) |
 
 ---
 
@@ -59,6 +60,10 @@ Every response shape and status code below was checked against the running backe
 - `POST /api/auth/register` `{username, password, email?, firstName?, lastName?}` → `{token, user{id, username, email, role}}`. `role` in the request is **ignored** (always `USER`). Duplicate username/email → 400.
 - `POST /api/auth/login` `{username, password}` → same shape. Wrong password or unknown user → **401** `{"message": "Invalid username or password."}` (same message for both).
 - `GET /api/auth/me` → `{id, username, email, role, isVip, vipExpireAt}`. Login/register `user` has the same fields. `role` is `USER`, `VIP` or `ADMIN`; use `isVip` for VIP pricing and badges, because a `VIP` whose membership expired keeps `role: VIP` but gets `isVip: false`.
+- **Forgot password** (2026-10-08, `guoqing`; both public):
+  - `POST /api/auth/forgot-password` `{identifier}` (username or email, email is case-insensitive) → always **200** `{message}`, the same whether or not the account exists. A one-time link valid for 30 minutes is printed in the backend log (`[PASSWORD RESET]`), since there is no email service. In demo mode the response also has `resetLink`. Requesting a new link retires the previous one.
+  - `POST /api/auth/reset-password` `{token, newPassword}` (6–128 chars) → **200** `{message}`. Invalid, used or expired token → **400** `"This reset link is invalid or has expired..."`.
+  - UI: "Forgot password?" on `/login` → `/forgot-password` → link → `/reset-password?token=...`.
 - Send the token as `Authorization: Bearer <token>`. It expires after 24 h → the next call returns 401 → your interceptor sends the user to `/login`.
 
 ### 4.2 Stations (public)

@@ -379,3 +379,20 @@ export async function getAdminUser(userId) {
     if (!user) throw Object.assign(new Error('User not found'), { response: { status: 404, data: { message: `User not found: ${userId}` } } });
     return { user: withCounts(user), orders: mockUserOrders(user.id) };
 }
+
+// Forgot / reset password (mirror POST /api/auth/forgot-password and /reset-password,
+// in demo mode so the page can show the link). Token "expired" simulates a dead link.
+export async function forgotPassword(identifier) {
+    await latency();
+    return {
+        message: 'If an account matches, a password reset link has been sent. It expires in 30 minutes.',
+        resetLink: `${window.location.origin}/reset-password?token=mock-${encodeURIComponent(identifier)}`,
+    };
+}
+export async function resetPassword(token) {
+    await latency();
+    if (!token || token === 'expired') {
+        throw Object.assign(new Error('expired'), { response: { status: 400, data: { message: 'This reset link is invalid or has expired. Please request a new one.' } } });
+    }
+    return { message: 'Your password has been reset. You can now log in with your new password.' };
+}
