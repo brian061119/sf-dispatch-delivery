@@ -50,7 +50,7 @@ public class GeminiDeliveryClient {
                 "generationConfig", Map.of("maxOutputTokens", 4096,
                     "responseMimeType", "application/json", "responseSchema", Map.of("type", "OBJECT", "properties", props, "required", List.of("intent"))));
             HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/models/" + model + ":generateContent"))
-                .timeout(Duration.ofSeconds(12)).header("Content-Type", "application/json")
+                .timeout(Duration.ofSeconds(30)).header("Content-Type", "application/json")
                 .header("x-goog-api-key", key).POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body))).build();
             HttpResponse<String> response = null;
             // Retry only transient server failures. Bound retries to avoid a hanging UI.
