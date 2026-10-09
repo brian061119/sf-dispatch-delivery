@@ -103,6 +103,28 @@ class VipPrivilegesApiTest {
     }
 
     @Test
+    @DisplayName("Admin cannot subscribe to VIP and keeps the ADMIN role and admin access")
+    void adminCannotSubscribeAndKeepsAdminRole() throws Exception {
+        String adminToken = login("admin", "password123");
+
+        mvc.perform(post("/api/vip/subscribe")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"planType\":\"ANNUAL\",\"paymentMethodId\":\"pm_card_mock\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Admin accounts can't subscribe")));
+
+        // Fresh login: the stored role must still be ADMIN, not VIP.
+        String freshToken = login("admin", "password123");
+        mvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + freshToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role").value("ADMIN"))
+                .andExpect(jsonPath("$.isVip").value(false));
+        mvc.perform(get("/api/admin/dashboard").header("Authorization", "Bearer " + freshToken))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     @DisplayName("VIP user enjoys dispatch service fee waiver ($0 fee, 100% refund) when vehicle is en route to pickup")
     void vipUserEnjoysCancellationFeeWaiverWhenVehicleEnRoute() throws Exception {
         String vipToken = login("vip_user", "password123");

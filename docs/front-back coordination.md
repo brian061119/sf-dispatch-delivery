@@ -173,7 +173,8 @@ JSON errors look like `{timestamp, status, error, message}`, plus `code` for pay
 | `POST /api/vip/subscribe` (login) | `{planType: "MONTHLY" \| "ANNUAL", paymentMethodId?}` | Same as status. Extends from the current expiry if already VIP |
 
 - **Benefits** (from `benefits[]`): 10% off every order, $2.50 cancellation fee waived, 2 modifications per order, +10% weight/volume tolerance, priority dispatch and high-battery vehicles.
-- **Known issues (B8, B9):** subscribing changes the user's role to `VIP`, so **an admin who subscribes loses admin access** (verified: `/api/admin/dashboard` → 403 afterwards). Any `planType` other than `ANNUAL` (even `"LIFETIME"`) is treated as monthly, and no payment is taken. **Hide the VIP subscribe button for admins** until B8 is fixed.
+- **Admins can't subscribe** (B8, fixed): `POST /api/vip/subscribe` → **409** for `ADMIN` accounts; their role is never changed.
+- **Known issue (B9):** any `planType` other than `ANNUAL` (even `"LIFETIME"`) is treated as monthly, and no payment is taken.
 - After subscribing, the existing token keeps working, and `/api/auth/me` returns the new `role` / `isVip` right away.
 
 ### 4.12 AI assistant (YuningZhang, `e8b366e`)
@@ -209,7 +210,7 @@ Both need login (401 without). Answers come from Gemini plus `server/src/main/re
 | B5 | Decide logout (client-only is fine) and update `api-contract.md`. `POST /api/auth/logout` is still 404 | Remove the `/auth/logout` call |
 | B6 | ✅ **Done** (`9dca22b`, ty2610-Columbia, 2026-10-03; details in `docs/调度引擎变更-2026-10-03.md`). Stations ranked by distance to pickup + dropoff, with per-vehicle-type fallback to the next station (§4.3) | Fewer empty results; options can come from different stations |
 | B7 | **New:** modifying an off-peak order turns it into `BEST_VALUE`, moves its start to now and re-prices it (§4.10). Intended? If not, keep the plan type and scheduled start when only the package or address changes | If intended, warn the user in the modify dialog before saving |
-| B8 | **New (bug):** `POST /api/vip/subscribe` sets `role = VIP`, so an **admin who subscribes loses admin access** permanently (`VipService.subscribe`). Fix: keep `ADMIN` and track VIP only through `vipExpireAt`/`isVip`, or reject subscribe for admins | Until fixed, hide the subscribe button for admins |
+| B8 | ✅ **Fixed** (2026-10-08, `guoqing`): `POST /api/vip/subscribe` now refuses admin accounts with **409** `"Admin accounts can't subscribe to VIP..."`, so the role stays `ADMIN`. Before, it replaced `ADMIN` with `VIP` and locked the account out of the admin console. Test: `VipPrivilegesApiTest.adminCannotSubscribeAndKeepsAdminRole` | Admins already can't reach `/vip` (`RequireCustomer`, no header link); show the 409 `message` if it ever happens |
 | B9 | **New:** VIP subscribe accepts any `planType` (unknown values become monthly) and takes no payment. Validate `planType` (400 otherwise) and charge through the mock payment like orders | Show plan prices; handle 402 like checkout |
 
 ---

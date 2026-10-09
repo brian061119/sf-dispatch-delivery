@@ -68,6 +68,12 @@ public class VipService {
 
     @Transactional(rollbackFor = Exception.class)
     public VipStatusResponse subscribe(User user, VipSubscribeRequest request) {
+        // VIP is tracked through the role, so subscribing would replace ADMIN with VIP
+        // and lock the account out of the admin console. Admins are staff, not customers.
+        if (user.getRole() == Role.ADMIN) {
+            throw new IllegalStateException("Admin accounts can't subscribe to VIP. Use a customer account.");
+        }
+
         String planType = request.getPlanType() != null ? request.getPlanType().trim().toUpperCase() : "MONTHLY";
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime baseTime = (user.isVip() && user.getVipExpireAt() != null && user.getVipExpireAt().isAfter(now))
