@@ -37,7 +37,7 @@ export default function AdminUserDetail() {
 
   useEffect(() => { load(); }, [load]);
 
-  const back = <Link to="/admin"><ArrowLeftOutlined /> Back to admin console</Link>;
+  const back = <Link to="/admin?tab=users"><ArrowLeftOutlined /> Back to admin console</Link>;
   if (loading && !data) return <div style={{ minHeight: 420, display: "grid", placeItems: "center" }}><Spin size="large" /></div>;
   if (!data) return <div style={{ padding: "22px 0" }}>{back}<Alert type="error" showIcon message={error} style={{ marginTop: 16 }} /></div>;
 
@@ -47,7 +47,7 @@ export default function AdminUserDetail() {
 
   return (
     <div style={{ padding: "22px 0 48px" }}>
-      <Breadcrumb items={[{ title: <Link to="/admin">Admin console</Link> }, { title: "Users" }, { title: user.username }]} />
+      <Breadcrumb items={[{ title: <Link to="/admin?tab=users">Admin console</Link> }, { title: "Users" }, { title: user.username }]} />
 
       <Row justify="space-between" align="bottom" gutter={[12, 12]} style={{ marginTop: 12 }}>
         <Col>
