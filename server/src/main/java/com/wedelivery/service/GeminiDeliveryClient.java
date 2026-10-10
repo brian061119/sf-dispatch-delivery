@@ -15,7 +15,8 @@ public class GeminiDeliveryClient {
     private final ObjectMapper mapper;
     private final String key, model, baseUrl;
     private final String knowledge;
-    private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+    private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
+
     public GeminiDeliveryClient(ObjectMapper mapper,
             @Value("${wedelivery.ai.api-key:}") String key,
             @Value("${wedelivery.ai.model:gemini-3.8-flash}") String model,
@@ -50,7 +51,7 @@ public class GeminiDeliveryClient {
                 "generationConfig", Map.of("maxOutputTokens", 4096,
                     "responseMimeType", "application/json", "responseSchema", Map.of("type", "OBJECT", "properties", props, "required", List.of("intent"))));
             HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/models/" + model + ":generateContent"))
-                .timeout(Duration.ofSeconds(12)).header("Content-Type", "application/json")
+                .timeout(Duration.ofSeconds(45)).header("Content-Type", "application/json")
                 .header("x-goog-api-key", key).POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body))).build();
             HttpResponse<String> response = null;
             // Retry only transient server failures. Bound retries to avoid a hanging UI.
@@ -62,12 +63,18 @@ public class GeminiDeliveryClient {
             }
             if (response.statusCode() != 200) {
                 int status = response.statusCode();
+                String serverMsg = "";
+                try {
+                    JsonNode errNode = mapper.readTree(response.body());
+                    serverMsg = errNode.path("error").path("message").asText("");
+                } catch (Exception ignored) {}
+                System.err.println("[GeminiDeliveryClient] HTTP " + status + " for model [" + model + "]: " + (serverMsg.isBlank() ? response.body() : serverMsg));
                 String reason = status == 429 ? "Gemini quota exhausted or rate limit reached. Try again later."
                     : status == 401 || status == 403 ? "Gemini rejected the API key or project permissions. Check AI Studio."
                     : status == 503 ? "Gemini is temporarily unavailable or overloaded (HTTP 503), even after automatic retries. Try again later or select another model available in AI Studio."
-                    : status == 400 ? "Gemini rejected the request (HTTP 400). Check the API key, selected model and model parameters."
-                    : status == 404 ? "Gemini model is unavailable. Set GEMINI_MODEL to a model available in your account."
-                    : "Gemini request failed (HTTP " + status + "). Check model configuration or try later.";
+                    : status == 400 ? "Gemini rejected the request (HTTP 400). " + (serverMsg.isBlank() ? "Check the API key, selected model and model parameters." : serverMsg)
+                    : status == 404 ? "Gemini model [" + model + "] is unavailable. " + (serverMsg.isBlank() ? "Set GEMINI_MODEL to a model available in your account." : serverMsg)
+                    : "Gemini request failed (HTTP " + status + "). " + serverMsg;
                 throw new IllegalStateException(reason);
             }
             JsonNode root = mapper.readTree(response.body());
@@ -84,7 +91,8 @@ public class GeminiDeliveryClient {
             Thread.currentThread().interrupt(); throw new IllegalStateException("Gemini request interrupted.");
         } catch (IllegalStateException e) { throw e; }
         catch (java.net.http.HttpTimeoutException e) {
-            throw new IllegalStateException("Gemini request timed out. Please retry later or check your network.");
+            System.err.println("[GeminiDeliveryClient] Request timed out (45s) for model [" + model + "]");
+            throw new IllegalStateException("Gemini request timed out (waited 45s). Please retry or check proxy/network.");
         } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             throw new IllegalStateException("Gemini returned invalid structured data. Please rephrase and retry.");
         } catch (java.io.IOException e) {
