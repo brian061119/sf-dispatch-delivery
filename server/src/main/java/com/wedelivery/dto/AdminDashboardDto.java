@@ -63,7 +63,31 @@ public class AdminDashboardDto {
         /** Location code: 0 = not at station, 1/2/3 = docked at corresponding station ID */
         private Integer locationCode;
         private BigDecimal currentSpeed;
+        private BigDecimal currentLat;
+        private BigDecimal currentLng;
+        private Long stationId;
+        private String stationName;
+        private ActiveOrderDto activeOrder;
         private LocalDateTime updatedAt;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class ActiveOrderDto {
+        private String orderNumber;
+        private OrderStatus status;
+        private String customerUsername;
+        private String pickupAddress;
+        private BigDecimal pickupLat;
+        private BigDecimal pickupLng;
+        private String dropoffAddress;
+        private BigDecimal dropoffLat;
+        private BigDecimal dropoffLng;
+        private BigDecimal packageWeight;
+        private BigDecimal packageVolume;
+        private BigDecimal finalPrice;
     }
 
     @Data
