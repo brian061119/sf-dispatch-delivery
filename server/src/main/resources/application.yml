@@ -43,6 +43,14 @@ jwt:
 
 # demo 模拟器定时推进（SimulationScheduler）
 wedelivery:
+  auth:
+    password-reset:
+      # DEMO ONLY: also return the reset link in the /forgot-password response so the
+      # page can show it (there is no email service). Lets anyone who knows a username
+      # reset that account, so keep it false outside local demos.
+      expose-link: ${DEMO_SHOW_RESET_LINK:false}
+      frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:3000}
+      ttl-minutes: 30
   ai:
     api-key: ${GEMINI_API_KEY:}
     model: ${GEMINI_MODEL:gemini-3.8-flash}

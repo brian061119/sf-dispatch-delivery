@@ -58,9 +58,11 @@ class AuthAndAdminApiTest {
                 .andExpect(jsonPath("$.chargingVehicles").value(1))
                 .andExpect(jsonPath("$.faultVehicles").value(1))
                 .andExpect(jsonPath("$.offlineVehicles").value(1))
-                // 大盘里站点也带上了容量与联系方式
                 .andExpect(jsonPath("$.stations[0].maxCapacity").value(25))
-                .andExpect(jsonPath("$.stations[0].contactPhone").value("(415) 555-0101"));
+                .andExpect(jsonPath("$.stations[0].contactPhone").value("(415) 555-0101"))
+                .andExpect(jsonPath("$.stations[0].vehicles[0].currentLat").exists())
+                .andExpect(jsonPath("$.stations[0].vehicles[0].currentLng").exists())
+                .andExpect(jsonPath("$.stations[0].vehicles[0].stationName").value("Station 1 - SF Downtown Hub"));
     }
 
     @Test

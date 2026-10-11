@@ -36,4 +36,9 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     List<Order> findByUserIdOrderByCreatedAtDesc(Long userId);
     List<Order> findAllByOrderByCreatedAtDesc();
     List<Order> findByStatusIn(Collection<OrderStatus> statuses);
+
+    /** Admin user list: one row per user = [userId, total orders, orders whose status is in activeStatuses]. */
+    @Query("SELECT o.userId, COUNT(o), SUM(CASE WHEN o.status IN :activeStatuses THEN 1 ELSE 0 END) "
+            + "FROM Order o GROUP BY o.userId")
+    List<Object[]> countOrdersByUser(@Param("activeStatuses") Collection<OrderStatus> activeStatuses);
 }

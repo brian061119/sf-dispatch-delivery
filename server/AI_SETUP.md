@@ -1,7 +1,7 @@
 # Gemini delivery integration
 
 Both POST /api/ai/parse ({text}) and POST /api/ai/chat ({message,history}) require the existing login JWT.
-Credentials are read only from the backend environment. The default model is gemini-3.8-flash;
+Credentials are read only from the backend environment. The default model is gemini-1.5-flash;
 set GEMINI_MODEL to a different model available to your Google project if necessary.
 
 In the same macOS zsh terminal that launches the backend:

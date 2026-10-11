@@ -19,9 +19,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.wedelivery.entity.enums.OrderStatus;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -233,28 +236,85 @@ public class StationService {
         long fault = allVehicles.stream().filter(v -> v.getStatus() == VehicleStatus.FAULT).count();
         long offline = allVehicles.stream().filter(v -> v.getStatus() == VehicleStatus.OFFLINE).count();
 
+        Map<Long, Order> activeOrdersByVehicleId = allOrders.stream()
+                .filter(o -> o.getVehicleId() != null &&
+                        (o.getStatus() == OrderStatus.PICKING_UP || o.getStatus() == OrderStatus.IN_TRANSIT))
+                .collect(Collectors.toMap(Order::getVehicleId, o -> o, (o1, o2) -> o1));
+
         List<AdminDashboardDto.StationSummaryDto> stationSummaries = stations.stream().map(s -> {
             List<Vehicle> sVehicles = allVehicles.stream()
                     .filter(v -> v.getStationId().equals(s.getId()))
                     .collect(Collectors.toList());
 
-            List<AdminDashboardDto.VehicleItemDto> vDtos = sVehicles.stream().map(v ->
-                    AdminDashboardDto.VehicleItemDto.builder()
-                            .id(v.getId())
-                            .vehicleCode(v.getVehicleCode())
-                            .vehicleType(v.getVehicleType())
-                            .status(v.getStatus())
-                            .statusLabel(v.getStatus().getLabel())
-                            .batteryLevel(v.getBatteryLevel())
-                            .maxWeight(v.getMaxWeight())
-                            .cruiseSpeed(v.getCruiseSpeed())
-                            .enduranceMinutes(v.getEnduranceMinutes())
-                            .maxDeliverableDistanceKm(v.getMaxDeliverableDistanceKm())
-                            .locationCode(v.getLocationCode())
-                            .currentSpeed(v.getCurrentSpeed())
-                            .updatedAt(v.getUpdatedAt())
-                            .build()
-            ).collect(Collectors.toList());
+            List<Vehicle> dockedVehicles = sVehicles.stream()
+                    .filter(v -> v.getStatus() != VehicleStatus.IN_DELIVERY)
+                    .collect(Collectors.toList());
+            int dockedCount = dockedVehicles.size();
+
+            List<AdminDashboardDto.VehicleItemDto> vDtos = new ArrayList<>();
+            for (Vehicle v : sVehicles) {
+                BigDecimal lat;
+                BigDecimal lng;
+                Order activeOrder = activeOrdersByVehicleId.get(v.getId());
+
+                if (v.getStatus() == VehicleStatus.IN_DELIVERY && v.getCurrentLat() != null && v.getCurrentLng() != null) {
+                    lat = v.getCurrentLat();
+                    lng = v.getCurrentLng();
+                } else {
+                    int dockIndex = dockedVehicles.indexOf(v);
+                    if (dockIndex >= 0 && dockedCount > 1 && s.getLatitude() != null && s.getLongitude() != null) {
+                        double angle = 2.0 * Math.PI * dockIndex / dockedCount;
+                        double radius = 0.00035; // ~35 meters circular offset
+                        lat = s.getLatitude().add(BigDecimal.valueOf(radius * Math.cos(angle)).setScale(7, RoundingMode.HALF_UP));
+                        lng = s.getLongitude().add(BigDecimal.valueOf(radius * Math.sin(angle)).setScale(7, RoundingMode.HALF_UP));
+                    } else {
+                        lat = s.getLatitude();
+                        lng = s.getLongitude();
+                    }
+                }
+
+                AdminDashboardDto.ActiveOrderDto activeOrderDto = null;
+                if (activeOrder != null) {
+                    String custUsername = userRepository.findById(activeOrder.getUserId())
+                            .map(u -> u.getUsername())
+                            .orElse("Customer");
+                    activeOrderDto = AdminDashboardDto.ActiveOrderDto.builder()
+                            .orderNumber(activeOrder.getOrderNumber())
+                            .status(activeOrder.getStatus())
+                            .customerUsername(custUsername)
+                            .pickupAddress(activeOrder.getPickupAddress())
+                            .pickupLat(activeOrder.getPickupLat())
+                            .pickupLng(activeOrder.getPickupLng())
+                            .dropoffAddress(activeOrder.getDropoffAddress())
+                            .dropoffLat(activeOrder.getDropoffLat())
+                            .dropoffLng(activeOrder.getDropoffLng())
+                            .packageWeight(activeOrder.getPackageWeight())
+                            .packageVolume(activeOrder.getPackageVolume())
+                            .finalPrice(activeOrder.getFinalPrice())
+                            .build();
+                }
+
+                vDtos.add(AdminDashboardDto.VehicleItemDto.builder()
+                        .id(v.getId())
+                        .vehicleCode(v.getVehicleCode())
+                        .vehicleType(v.getVehicleType())
+                        .status(v.getStatus())
+                        .statusLabel(v.getStatus().getLabel())
+                        .batteryLevel(v.getBatteryLevel())
+                        .maxWeight(v.getMaxWeight())
+                        .cruiseSpeed(v.getCruiseSpeed())
+                        .enduranceMinutes(v.getEnduranceMinutes())
+                        .maxDeliverableDistanceKm(v.getMaxDeliverableDistanceKm())
+                        .locationCode(v.getLocationCode())
+                        .currentSpeed(v.getCurrentSpeed())
+                        .currentLat(lat)
+                        .currentLng(lng)
+                        .stationId(s.getId())
+                        .stationName(s.getName())
+                        .activeOrder(activeOrderDto)
+                        .updatedAt(v.getUpdatedAt())
+                        .build());
+            }
 
             return AdminDashboardDto.StationSummaryDto.builder()
                     .stationId(s.getId())

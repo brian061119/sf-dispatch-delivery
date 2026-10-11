@@ -76,6 +76,10 @@ export default function Login() {
           />
         </Form.Item>
 
+        <div style={{ textAlign: "right", marginTop: -12, marginBottom: 16 }}>
+          <Link to="/forgot-password">Forgot password?</Link>
+        </div>
+
         <Form.Item shouldUpdate>
           {({ isFieldsTouched, getFieldsError }) => {
             const hasErrors = getFieldsError().some(

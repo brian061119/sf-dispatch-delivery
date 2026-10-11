@@ -60,7 +60,7 @@ export function AiAssistant() {
                             <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
                                 <Button size="small" onClick={() => send('Where is my delivery?')}>“Where is my delivery?”</Button>
                                 <Button size="small" onClick={() => send('How much for a 2kg package?')}>“How much for a 2kg package?”</Button>
-                                <Button size="small" onClick={() => send('Send a 3kg fragile cake to Mission')}>“Send a 3kg fragile cake to Mission”</Button>
+                                <Button size="small" onClick={() => send('Send a 3kg parcel to Mission')}>“Send a 3kg parcel to Mission”</Button>
                             </div>
                         </Card>
                     )}
@@ -85,7 +85,7 @@ export function AiAssistant() {
                                         ))}
                                         {card.type === 'prefill' && (
                                             <Space direction="vertical" size={4}>
-                                                <Text strong>📦 {card.itemName || 'Package'}{card.weightKg ? ` · ${card.weightKg} kg` : ''}{card.fragile ? ' · fragile' : ''}</Text>
+                                                <Text strong>📦 {card.itemName || 'Package'}{card.weightKg ? ` · ${card.weightKg} kg` : ''}</Text>
                                                 <Button size="small" type="primary" onClick={() => usePrefill(m.prefill)}>Review in order wizard →</Button>
                                             </Space>
                                         )}
