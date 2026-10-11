@@ -118,6 +118,11 @@ public class SimulationService {
 
     /**
      * Advances an unassigned vehicle towards its assigned station by one tick.
+     *
+     * <p>返站同样沿街道折线推进（与配送阶段共用 {@link RouteService}）：OSRM 可用时车辆
+     * 沿道路开回站点，不再从当前位置直接拉一条穿楼的直线；OSRM 不可用时 routeGeometry
+     * 退化为起终两点，行为与旧的直线返站完全一致，断网也不会报错。
+     *
      * @return true if vehicle has docked at station and returned to IDLE
      */
     private boolean returnToStation(Vehicle v, Station station, LocalDateTime now) {
@@ -136,7 +141,9 @@ public class SimulationService {
 
         double vLat = v.getCurrentLat().doubleValue();
         double vLng = v.getCurrentLng().doubleValue();
-        double remainingKm = routeService.calculateStraightDistance(vLat, vLng, sLat, sLng);
+
+        List<double[]> geometry = routeService.routeGeometry(vLat, vLng, sLat, sLng, v.getVehicleType());
+        double remainingKm = polylineLengthKm(geometry, vLat, vLng, sLat, sLng);
 
         if (remainingKm <= ARRIVE_RADIUS_KM) {
             parkAtStation(v, station, now);
@@ -150,8 +157,9 @@ public class SimulationService {
         }
 
         double ratio = stepKm / remainingKm;
-        double nextLat = vLat + ratio * (sLat - vLat);
-        double nextLng = vLng + ratio * (sLng - vLng);
+        double[] point = routeService.pointAlongRoute(geometry, ratio);
+        double nextLat = point != null ? point[0] : vLat + ratio * (sLat - vLat);
+        double nextLng = point != null ? point[1] : vLng + ratio * (sLng - vLng);
 
         v.setCurrentLat(BigDecimal.valueOf(nextLat).setScale(7, RoundingMode.HALF_UP));
         v.setCurrentLng(BigDecimal.valueOf(nextLng).setScale(7, RoundingMode.HALF_UP));
@@ -160,7 +168,7 @@ public class SimulationService {
         v.setPositionUpdatedAt(now);
         v.setSpeedUpdatedAt(now);
 
-        // Empty return battery drain: energy rate * distance
+        // Empty return battery drain: energy rate * distance actually advanced along the route
         double drained = stepKm * v.getVehicleType().getEnergyRatePercentPerKm().doubleValue();
 
         BigDecimal nextBattery = v.getBatteryLevel().subtract(BigDecimal.valueOf(drained));
@@ -168,6 +176,23 @@ public class SimulationService {
 
         vehicleRepository.save(v);
         return false;
+    }
+
+    /**
+     * 折线总长度 (km)。折线缺失或退化（不足两点）时退回起终点直线距离，
+     * 保证断网/降级时返站逻辑仍可推进。
+     */
+    private double polylineLengthKm(List<double[]> geometry, double lat1, double lng1, double lat2, double lng2) {
+        if (geometry == null || geometry.size() < 2) {
+            return routeService.calculateStraightDistance(lat1, lng1, lat2, lng2);
+        }
+        double total = 0.0;
+        for (int i = 1; i < geometry.size(); i++) {
+            double[] a = geometry.get(i - 1);
+            double[] b = geometry.get(i);
+            total += routeService.calculateStraightDistance(a[0], a[1], b[0], b[1]);
+        }
+        return total;
     }
 
     private void parkAtStation(Vehicle v, Station station, LocalDateTime now) {
