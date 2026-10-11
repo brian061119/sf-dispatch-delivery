@@ -39,7 +39,7 @@ export default function Dashboard() {
     try {
       const draft = await parseOrderText(note);
       wizard.reset();
-      wizard.prefill(draft.prefill ?? { pkg: { description: draft.itemName || "", weightKg: draft.weight, fragile: !!draft.fragile } });
+      wizard.prefill(draft.prefill ?? { pkg: { description: draft.itemName || "", weightKg: draft.weight, fragile: false } });
       navigate("/order/new");
     } catch (err) { setError(apiErrorMessage(err, "Could not read that request. You can still create a delivery manually.")); }
     finally { setAiBusy(false); }
@@ -54,7 +54,7 @@ export default function Dashboard() {
     <Text type="secondary">Manage deliveries, track active orders, and create a new shipment.</Text>
     <Button type="primary" size="large" block onClick={() => navigate("/order/new")} style={createButton}>+ Create a new delivery</Button>
     <Card style={aiCard} size="small" title="🤖 Describe a delivery in one sentence (optional)">
-      <Space.Compact style={{ width: "100%" }}><Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="e.g. Send a 2kg box from Market St to Mission St, express and fragile" onPressEnter={startFromText} /><Button type="primary" onClick={startFromText} loading={aiBusy}>Start order →</Button></Space.Compact>
+      <Space.Compact style={{ width: "100%" }}><Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="e.g. Send a 2kg box from Market St to Mission St" onPressEnter={startFromText} /><Button type="primary" onClick={startFromText} loading={aiBusy}>Start order →</Button></Space.Compact>
     </Card>
     {error && <Alert type="error" showIcon message={error} style={{ marginTop: 18 }} />}
     <Row gutter={[24, 24]} style={{ marginTop: 22 }}>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, AutoComplete, Button, Card, Checkbox, Col, Descriptions, Empty, Form, Input, InputNumber, Popover, Radio, Row, Segmented, Space, Spin, Steps, Tag, Typography } from "antd";
+import { Alert, AutoComplete, Button, Card, Col, Descriptions, Empty, Form, Input, InputNumber, Popover, Row, Segmented, Space, Spin, Steps, Tag, Typography } from "antd";
 import { AimOutlined, EnvironmentOutlined, RobotOutlined, RocketOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { createOrder } from "../api/order";
@@ -76,7 +76,7 @@ export default function OrderWizard() {
     <Steps current={step} items={steps} style={{ maxWidth: 780, margin: "0 auto 34px" }} />
     {error && <Alert type="error" showIcon message={error} style={{ marginBottom: 20 }} />}
     {step === 0 && <AddressStep stations={stations} initial={{ pickup: wizard.pickup, dropoff: wizard.dropoff }} onNext={(pickup, dropoff) => { wizard.setAddress(pickup, dropoff); setStep(1); }} />}
-    {step === 1 && <PackageStep busy={busy} initial={{ pkg: wizard.pkg, priority: wizard.priority }} onBack={() => setStep(0)} onNext={(v) => { const pkg = { description: v.description, weightKg: v.weightKg, lengthCm: v.lengthCm ?? null, widthCm: v.widthCm ?? null, heightCm: v.heightCm ?? null, fragile: !!v.fragile }; wizard.setPackage(pkg, v.priority); recommendations(pkg, v.priority); }} />}
+    {step === 1 && <PackageStep busy={busy} initial={{ pkg: wizard.pkg }} onBack={() => setStep(0)} onNext={(v) => { const pkg = { description: v.description, weightKg: v.weightKg, lengthCm: v.lengthCm ?? null, widthCm: v.widthCm ?? null, heightCm: v.heightCm ?? null, fragile: false }; wizard.setPackage(pkg, "STANDARD"); recommendations(pkg, "STANDARD"); }} />}
     {step === 2 && <OptionStep options={wizard.candidates} selected={wizard.selected} onSelect={wizard.select} onBack={() => setStep(1)} onNext={() => setStep(3)} busy={busy} />}
     {step === 3 && <PayStep wizard={wizard} busy={busy} onBack={() => setStep(2)} onPay={pay} />}
   </div>;
@@ -284,8 +284,6 @@ function PackageStep({ onBack, onNext, busy, initial }) {
           lengthCm: initial.pkg?.lengthCm ?? undefined,
           widthCm: initial.pkg?.widthCm ?? undefined,
           heightCm: initial.pkg?.heightCm ?? undefined,
-          fragile: initial.pkg?.fragile ?? false,
-          priority: initial.priority ?? "STANDARD",
         }}
         onValuesChange={(changed) => { if (changed.weightKg !== undefined) setWeight(changed.weightKg); }}
       >
@@ -301,9 +299,7 @@ function PackageStep({ onBack, onNext, busy, initial }) {
           <Col span={8}><Form.Item name="widthCm" label="Width (cm)"><InputNumber min={1} max={500} style={{ width: "100%" }} /></Form.Item></Col>
           <Col span={8}><Form.Item name="heightCm" label="Height (cm)"><InputNumber min={1} max={500} style={{ width: "100%" }} /></Form.Item></Col>
         </Row>
-        <Form.Item name="fragile" valuePropName="checked"><Checkbox>Fragile item</Checkbox></Form.Item>
-        <Form.Item name="priority" label="Priority"><Radio.Group options={[{ label: "Standard", value: "STANDARD" }, { label: "Express", value: "EXPRESS" }]} /></Form.Item>
-        <Space style={{ display: "flex", justifyContent: "space-between" }}>
+        <Space style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
           <Button onClick={onBack}>← Back</Button>
           <Button htmlType="submit" type="primary" loading={busy} disabled={tooHeavy}>Continue →</Button>
         </Space>
@@ -384,7 +380,7 @@ function PayStep({ wizard, onBack, onPay, busy }) {
           <Descriptions column={1} layout="vertical">
             <Descriptions.Item label="Pickup">{wizard.pickup?.line1}</Descriptions.Item>
             <Descriptions.Item label="Destination">{wizard.dropoff?.line1}</Descriptions.Item>
-            <Descriptions.Item label="Package">{wizard.pkg?.description} · {wizard.pkg?.weightKg} kg{wizard.pkg?.fragile ? " · fragile" : ""}</Descriptions.Item>
+            <Descriptions.Item label="Package">{wizard.pkg?.description} · {wizard.pkg?.weightKg} kg</Descriptions.Item>
             <Descriptions.Item label="Option">{option?.vehicleType}{isOffPeak(option) ? " (Off-peak −15%, departs 1h later)" : ""} · {option?.estimatedTimeMinutes} min · {option?.stationName}</Descriptions.Item>
           </Descriptions>
           <Title level={4} style={{ marginTop: 42 }}>Total ${total.toFixed(2)}</Title>
