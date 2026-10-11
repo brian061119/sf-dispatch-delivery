@@ -350,7 +350,7 @@ hash originally shipped in `data.sql` was a placeholder that did **not** match, 
 ## AI delivery endpoints (2026-10-07)
 
 Both endpoints require a valid login JWT. The backend uses GEMINI_API_KEY and optional
-GEMINI_MODEL (default gemini-3.8-flash). Keys must never be supplied by the browser.
+GEMINI_MODEL (default gemini-1.5-flash). Keys must never be supplied by the browser.
 
 ### POST /api/ai/parse
 Request: `{ "text": "send a 2kg item from Market St to Mission St, fragile and express" }`.

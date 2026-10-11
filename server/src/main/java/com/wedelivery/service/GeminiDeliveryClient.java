@@ -19,7 +19,7 @@ public class GeminiDeliveryClient {
 
     public GeminiDeliveryClient(ObjectMapper mapper,
             @Value("${wedelivery.ai.api-key:}") String key,
-            @Value("${wedelivery.ai.model:gemini-3.8-flash}") String model,
+            @Value("${wedelivery.ai.model:gemini-1.5-flash}") String model,
             @Value("${wedelivery.ai.base-url:https://generativelanguage.googleapis.com/v1beta}") String baseUrl) {
         this.mapper = mapper; this.key = key; this.model = model; this.baseUrl = baseUrl;
         try (java.io.InputStream input = new org.springframework.core.io.ClassPathResource("delivery-knowledge.md").getInputStream()) {

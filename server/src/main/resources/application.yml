@@ -53,7 +53,7 @@ wedelivery:
       ttl-minutes: 30
   ai:
     api-key: ${GEMINI_API_KEY:}
-    model: ${GEMINI_MODEL:gemini-3.8-flash}
+    model: ${GEMINI_MODEL:gemini-1.5-flash}
     base-url: https://generativelanguage.googleapis.com/v1beta
   simulation:
     auto-tick: ${SIMULATION_AUTO_TICK:true}

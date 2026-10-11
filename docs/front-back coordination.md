@@ -32,7 +32,7 @@ Every response shape and status code below was checked against the running backe
 | Test accounts | `admin`, `vip_user` (VIP discount), `normal_user`, all with password `password123` |
 | Reference requests | `postman/tests/*.json`: working examples of every call, including error cases |
 | Mock mode | `VITE_MOCK=1` still works if the backend is down |
-| AI assistant | Set `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`, default `gemini-3.8-flash`) in the environment that starts the backend. Without it, `/api/ai/parse` returns 503 |
+| AI assistant | Set `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`, default `gemini-1.5-flash`) in the environment that starts the backend. Without it, `/api/ai/parse` returns 503 |
 | Road routing | `ROUTING_PROVIDER=osrm` (default) asks the public OSRM server for street routes, so it **needs internet**. If OSRM fails it falls back to straight lines. `ROUTING_PROVIDER=haversine` = straight lines, offline |
 | Password reset demo | `DEMO_SHOW_RESET_LINK=true` makes `/api/auth/forgot-password` return the reset link so `/forgot-password` can show it. **Demo only:** anyone who knows a username could then reset that account. Default `false`: the link is only in the backend log. `FRONTEND_BASE_URL` (default `http://localhost:3000`) sets the link's host. New table `password_reset_tokens` (created automatically locally; on AWS run the `CREATE TABLE` from `schema.sql`) |
 
