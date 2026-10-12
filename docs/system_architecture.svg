@@ -1,236 +1,297 @@
-<svg width="1120" height="920" viewBox="0 0 1120 920" xmlns="http://www.w3.org/2000/svg" style="background:#ffffff; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;">
+<svg width="1220" height="960" viewBox="0 0 1220 960" xmlns="http://www.w3.org/2000/svg" style="background:#ffffff; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;">
   <defs>
-    <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+    <filter id="shadow" x="-3%" y="-3%" width="106%" height="108%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.06"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
       <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#1E3A8A"/>
     </marker>
-    <marker id="arrow-gray" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+    <marker id="arrow-gray" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
       <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#4B5563"/>
     </marker>
   </defs>
 
-  <!-- 1. 客户端层 (Web Client) -->
-  <rect x="40" y="25" width="1040" height="110" rx="4" fill="#FFFFFF" stroke="#333333" stroke-width="1.5"/>
-  <rect x="40" y="25" width="1040" height="26" rx="4" fill="#F3F4F6" stroke="#333333" stroke-width="1.5"/>
-  <text x="560" y="42" font-size="12" font-weight="bold" fill="#1F2937" text-anchor="middle">客户端层 (Web Client)</text>
+  <!-- ==================== 1. 客户端表现层 (Web Client) ==================== -->
+  <rect x="30" y="20" width="1160" height="125" rx="6" fill="#FFFFFF" stroke="#334155" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="30" y="20" width="1160" height="26" rx="6" fill="#F1F5F9" stroke="#334155" stroke-width="1.5"/>
+  <text x="610" y="37" font-size="12.5" font-weight="bold" fill="#0F172A" text-anchor="middle">1. 客户端表现层 (Web Client — React 19 + Vite + Leaflet GIS 地图引擎)</text>
 
-  <!-- 用户端 -->
-  <rect x="70" y="60" width="460" height="65" rx="3" fill="#FFFFFF" stroke="#6B7280" stroke-width="1"/>
-  <text x="300" y="80" font-size="12" font-weight="bold" fill="#111827" text-anchor="middle">用户端 (User/VIP View)</text>
-  <text x="300" y="98" font-size="11" fill="#4B5563" text-anchor="middle">- 询价/推荐对比   - 下单与支付</text>
-  <text x="300" y="114" font-size="11" fill="#4B5563" text-anchor="middle">- 实时地图轨迹追踪</text>
+  <!-- 用户与访客端 -->
+  <rect x="50" y="54" width="380" height="80" rx="5" fill="#F8FAFC" stroke="#3B82F6" stroke-width="1.2"/>
+  <text x="240" y="72" font-size="12" font-weight="bold" fill="#1D4ED8" text-anchor="middle">用户与访客端 (User / VIP / Guest View)</text>
+  <text x="240" y="90" font-size="10.5" fill="#334155" text-anchor="middle">• 4步发件向导 (OrderWizard) + 地图点击选点与旧金山围栏</text>
+  <text x="240" y="106" font-size="10.5" fill="#334155" text-anchor="middle">• 实时轨迹追踪、公开追踪码免密查单 (/track?code=...)</text>
+  <text x="240" y="122" font-size="10.5" fill="#334155" text-anchor="middle">• 取件前改址/取消、一键补差价升级无人机、VIP 中心、密码找回</text>
 
-  <!-- 管理端 -->
-  <rect x="570" y="60" width="480" height="65" rx="3" fill="#FFFFFF" stroke="#6B7280" stroke-width="1"/>
-  <text x="810" y="80" font-size="12" font-weight="bold" fill="#111827" text-anchor="middle">管理端 (Admin/Station View)</text>
-  <text x="810" y="98" font-size="11" fill="#4B5563" text-anchor="middle">- 3个站点运营看板   - 载具状态/电量监控</text>
-  <text x="810" y="114" font-size="11" fill="#4B5563" text-anchor="middle">- 全城订单热力/列表</text>
+  <!-- AI 配送助手浮窗 -->
+  <rect x="445" y="54" width="330" height="80" rx="5" fill="#F5F3FF" stroke="#8B5CF6" stroke-width="1.2"/>
+  <text x="610" y="72" font-size="12" font-weight="bold" fill="#6D28D9" text-anchor="middle">AI 智能配送助手 (AiAssistant.jsx)</text>
+  <text x="610" y="90" font-size="10.5" fill="#334155" text-anchor="middle">• 自然语言提取收发件地址/重量/尺寸并自动预填草稿</text>
+  <text x="610" y="106" font-size="10.5" fill="#334155" text-anchor="middle">• 对话式实时路线询价 (QUOTE) 与追踪码查单 (TRACK)</text>
+  <text x="610" y="122" font-size="10.5" fill="#334155" text-anchor="middle">• 基于受信任产品知识库 (delivery-knowledge.md) 精准问答</text>
+
+  <!-- 运营管理端 -->
+  <rect x="790" y="54" width="380" height="80" rx="5" fill="#ECFDF5" stroke="#10B981" stroke-width="1.2"/>
+  <text x="980" y="72" font-size="12" font-weight="bold" fill="#047857" text-anchor="middle">运营管理控制台 (AdminDashboard — 3大看板)</text>
+  <text x="980" y="90" font-size="10.5" fill="#334155" text-anchor="middle">• 🗺️ Fleet Live Map: 全城载具实时 GPS、电量与点击绘线</text>
+  <text x="980" y="106" font-size="10.5" fill="#334155" text-anchor="middle">• 📊 Station Bays &amp; Orders: 泊位监控、多维搜索、批量导入</text>
+  <text x="980" y="122" font-size="10.5" fill="#334155" text-anchor="middle">• 👥 User Accounts: 全量用户角色、VIP 与历史订单详情</text>
 
   <!-- 客户端 -> 安全鉴权层 -->
-  <line x1="560" y1="135" x2="560" y2="165" stroke="#1E3A8A" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="610" y1="145" x2="610" y2="170" stroke="#1E3A8A" stroke-width="1.6" marker-end="url(#arrow)"/>
 
-  <!-- 2. 安全鉴权层 -->
-  <rect x="40" y="165" width="1040" height="70" rx="4" fill="#FFFFFF" stroke="#333333" stroke-width="1.5"/>
-  <rect x="40" y="165" width="1040" height="24" rx="4" fill="#F3F4F6" stroke="#333333" stroke-width="1.5"/>
-  <text x="560" y="181" font-size="12" font-weight="bold" fill="#1F2937" text-anchor="middle">安全鉴权层</text>
+  <!-- ==================== 2. 安全鉴权层 (Security Layer) ==================== -->
+  <rect x="30" y="170" width="1160" height="68" rx="6" fill="#FFFFFF" stroke="#334155" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="30" y="170" width="1160" height="24" rx="6" fill="#F1F5F9" stroke="#334155" stroke-width="1.5"/>
+  <text x="610" y="186" font-size="12.5" font-weight="bold" fill="#0F172A" text-anchor="middle">2. 安全鉴权与网关过滤层 (Spring Security + JWT)</text>
 
-  <rect x="150" y="196" width="360" height="32" rx="3" fill="#FFFFFF" stroke="#6B7280" stroke-width="1"/>
-  <text x="330" y="217" font-size="12" fill="#111827" text-anchor="middle">Spring Security Filter Chain</text>
+  <rect x="110" y="200" width="440" height="30" rx="4" fill="#F8FAFC" stroke="#64748B" stroke-width="1"/>
+  <text x="330" y="219" font-size="11.5" font-weight="bold" fill="#1E293B" text-anchor="middle">Spring Security Filter Chain (无状态 Session / CORS / 公开与受保护路由隔离)</text>
 
-  <rect x="590" y="196" width="380" height="32" rx="3" fill="#FFFFFF" stroke="#6B7280" stroke-width="1"/>
-  <text x="780" y="217" font-size="12" fill="#111827" text-anchor="middle">JWT Provider / AuthInterceptor</text>
+  <rect x="650" y="200" width="460" height="30" rx="4" fill="#F8FAFC" stroke="#64748B" stroke-width="1"/>
+  <text x="880" y="219" font-size="11.5" font-weight="bold" fill="#1E293B" text-anchor="middle">JwtAuthFilter &amp; JwtUtils (Bearer Token 校验 / USER · VIP · ADMIN 角色鉴权)</text>
 
   <!-- 安全鉴权层 -> 控制器层 -->
-  <line x1="560" y1="235" x2="560" y2="265" stroke="#1E3A8A" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="610" y1="238" x2="610" y2="263" stroke="#1E3A8A" stroke-width="1.6" marker-end="url(#arrow)"/>
 
-  <!-- 3. 控制器层 (REST Controllers) -->
-  <rect x="40" y="265" width="1040" height="85" rx="4" fill="#FFFFFF" stroke="#333333" stroke-width="1.5"/>
-  <rect x="40" y="265" width="1040" height="24" rx="4" fill="#F3F4F6" stroke="#333333" stroke-width="1.5"/>
-  <text x="560" y="281" font-size="12" font-weight="bold" fill="#1F2937" text-anchor="middle">控制器层 (REST Controllers)</text>
+  <!-- ==================== 3. 控制器层 (REST Controllers) ==================== -->
+  <rect x="30" y="263" width="1160" height="86" rx="6" fill="#FFFFFF" stroke="#334155" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="30" y="263" width="1160" height="24" rx="6" fill="#F1F5F9" stroke="#334155" stroke-width="1.5"/>
+  <text x="610" y="279" font-size="12.5" font-weight="bold" fill="#0F172A" text-anchor="middle">3. 控制器层 (Spring Boot REST Controllers — 8 个核心控制器)</text>
 
-  <!-- 5 Controllers -->
-  <!-- AdminStationController: center x = 145 -->
-  <rect x="60" y="297" width="170" height="42" rx="3" fill="#FFFFFF" stroke="#6B7280" stroke-width="1"/>
-  <text x="145" y="314" font-size="11" font-weight="bold" fill="#111827" text-anchor="middle">AdminStationController</text>
-  <text x="145" y="330" font-size="10" fill="#4B5563" text-anchor="middle">(/api/admin)</text>
+  <!-- 8 Controllers: width 130, gap 11, starting at x=45 -->
+  <rect x="45" y="295" width="132" height="44" rx="4" fill="#FFFFFF" stroke="#475569" stroke-width="1.1"/>
+  <text x="111" y="313" font-size="10.5" font-weight="bold" fill="#0F172A" text-anchor="middle">AdminController</text>
+  <text x="111" y="329" font-size="9.5" fill="#475569" text-anchor="middle">(/api/admin/**)</text>
 
-  <!-- RecommendationController: center x = 345 -->
-  <rect x="250" y="297" width="190" height="42" rx="3" fill="#FFFFFF" stroke="#6B7280" stroke-width="1"/>
-  <text x="345" y="314" font-size="11" font-weight="bold" fill="#111827" text-anchor="middle">RecommendationController</text>
-  <text x="345" y="330" font-size="10" fill="#4B5563" text-anchor="middle">(/api/recommendations)</text>
+  <rect x="188" y="295" width="132" height="44" rx="4" fill="#FFFFFF" stroke="#475569" stroke-width="1.1"/>
+  <text x="254" y="313" font-size="10.5" font-weight="bold" fill="#0F172A" text-anchor="middle">VehicleController</text>
+  <text x="254" y="329" font-size="9.5" fill="#475569" text-anchor="middle">(/api/vehicles/**)</text>
 
-  <!-- TrackingController: center x = 555 -->
-  <rect x="460" y="297" width="170" height="42" rx="3" fill="#FFFFFF" stroke="#6B7280" stroke-width="1"/>
-  <text x="545" y="314" font-size="11" font-weight="bold" fill="#111827" text-anchor="middle">TrackingController</text>
-  <text x="545" y="330" font-size="10" fill="#4B5563" text-anchor="middle">(/api/tracking)</text>
+  <rect x="331" y="295" width="138" height="44" rx="4" fill="#FFFFFF" stroke="#475569" stroke-width="1.1"/>
+  <text x="400" y="313" font-size="10.5" font-weight="bold" fill="#0F172A" text-anchor="middle">DispatchController</text>
+  <text x="400" y="329" font-size="9.5" fill="#475569" text-anchor="middle">(/api/dispatch · /recommendations)</text>
 
-  <!-- OrderController: center x = 745 -->
-  <rect x="650" y="297" width="170" height="42" rx="3" fill="#FFFFFF" stroke="#6B7280" stroke-width="1"/>
-  <text x="735" y="314" font-size="11" font-weight="bold" fill="#111827" text-anchor="middle">OrderController</text>
-  <text x="735" y="330" font-size="10" fill="#4B5563" text-anchor="middle">(/api/orders)</text>
+  <rect x="480" y="295" width="132" height="44" rx="4" fill="#FFFFFF" stroke="#475569" stroke-width="1.1"/>
+  <text x="546" y="313" font-size="10.5" font-weight="bold" fill="#0F172A" text-anchor="middle">OrderController</text>
+  <text x="546" y="329" font-size="9.5" fill="#475569" text-anchor="middle">(/api/orders/**)</text>
 
-  <!-- AuthController: center x = 935 -->
-  <rect x="840" y="297" width="160" height="42" rx="3" fill="#FFFFFF" stroke="#6B7280" stroke-width="1"/>
-  <text x="920" y="314" font-size="11" font-weight="bold" fill="#111827" text-anchor="middle">AuthController</text>
-  <text x="920" y="330" font-size="10" fill="#4B5563" text-anchor="middle">(/api/auth)</text>
+  <rect x="623" y="295" width="132" height="44" rx="4" fill="#FFFFFF" stroke="#475569" stroke-width="1.1"/>
+  <text x="689" y="313" font-size="10.5" font-weight="bold" fill="#0F172A" text-anchor="middle">TrackingController</text>
+  <text x="689" y="329" font-size="9.5" fill="#475569" text-anchor="middle">(/api/tracking/**)</text>
 
-  <!-- 4. 业务逻辑层 (Services) -->
-  <rect x="40" y="380" width="1040" height="205" rx="4" fill="#FFFFFF" stroke="#333333" stroke-width="1.5"/>
-  <rect x="40" y="380" width="1040" height="24" rx="4" fill="#F3F4F6" stroke="#333333" stroke-width="1.5"/>
-  <text x="560" y="396" font-size="12" font-weight="bold" fill="#1F2937" text-anchor="middle">业务逻辑层 (Services)</text>
+  <rect x="766" y="295" width="132" height="44" rx="4" fill="#F5F3FF" stroke="#7C3AED" stroke-width="1.2"/>
+  <text x="832" y="313" font-size="10.5" font-weight="bold" fill="#5B21B6" text-anchor="middle">AiController</text>
+  <text x="832" y="329" font-size="9.5" fill="#6D28D9" text-anchor="middle">(/api/ai/assistant)</text>
 
-  <!-- AdminStationService -->
-  <rect x="55" y="415" width="160" height="50" rx="3" fill="#FFFFFF" stroke="#6B7280" stroke-width="1"/>
-  <text x="135" y="435" font-size="11" font-weight="bold" fill="#111827" text-anchor="middle">AdminStationService</text>
-  <text x="135" y="453" font-size="10" fill="#4B5563" text-anchor="middle">- 站点车队状态聚合统计</text>
+  <rect x="909" y="295" width="125" height="44" rx="4" fill="#FFFFFF" stroke="#475569" stroke-width="1.1"/>
+  <text x="971" y="313" font-size="10.5" font-weight="bold" fill="#0F172A" text-anchor="middle">VipController</text>
+  <text x="971" y="329" font-size="9.5" fill="#475569" text-anchor="middle">(/api/vip/**)</text>
 
-  <!-- RecommendationService -->
-  <rect x="230" y="415" width="200" height="58" rx="3" fill="#FFFFFF" stroke="#6B7280" stroke-width="1"/>
-  <text x="330" y="432" font-size="11" font-weight="bold" fill="#111827" text-anchor="middle">RecommendationService</text>
-  <text x="330" y="447" font-size="9.5" fill="#4B5563" text-anchor="middle">- 站点初筛</text>
-  <text x="330" y="459" font-size="9.5" fill="#4B5563" text-anchor="middle">- 电量与载重合规校验(10% buffer)</text>
-  <text x="330" y="471" font-size="9.5" fill="#4B5563" text-anchor="middle">- 3种方案(极速/经济/错峰)生成</text>
+  <rect x="1045" y="295" width="130" height="44" rx="4" fill="#FFFFFF" stroke="#475569" stroke-width="1.1"/>
+  <text x="1110" y="313" font-size="10.5" font-weight="bold" fill="#0F172A" text-anchor="middle">AuthController</text>
+  <text x="1110" y="329" font-size="9.5" fill="#475569" text-anchor="middle">(/api/auth/**)</text>
 
-  <!-- LocalFormulaRouteImpl -->
-  <rect x="445" y="415" width="150" height="50" rx="3" fill="#FFFFFF" stroke="#6B7280" stroke-width="1"/>
-  <text x="520" y="435" font-size="10.5" font-weight="bold" fill="#111827" text-anchor="middle">LocalFormulaRouteImpl</text>
-  <text x="520" y="453" font-size="9.5" fill="#4B5563" text-anchor="middle">(Haversine + 折线系数)</text>
+  <!-- ==================== 4. 核心业务逻辑层 (Services) ==================== -->
+  <rect x="30" y="378" width="1160" height="232" rx="6" fill="#FFFFFF" stroke="#334155" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="30" y="378" width="1160" height="24" rx="6" fill="#F1F5F9" stroke="#334155" stroke-width="1.5"/>
+  <text x="610" y="394" font-size="12.5" font-weight="bold" fill="#0F172A" text-anchor="middle">4. 业务逻辑层与外部服务集成 (Domain Services &amp; Strategy Implementations)</text>
 
-  <!-- TrackingService -->
-  <rect x="610" y="415" width="150" height="58" rx="3" fill="#FFFFFF" stroke="#6B7280" stroke-width="1"/>
-  <text x="685" y="433" font-size="11" font-weight="bold" fill="#111827" text-anchor="middle">TrackingService</text>
-  <text x="685" y="449" font-size="9.5" fill="#4B5563" text-anchor="middle">- 方案A按需时间坐标插值</text>
-  <text x="685" y="463" font-size="9.5" fill="#4B5563" text-anchor="middle">- 关键阶段事件审计落库</text>
+  <!-- Row 1: 6 Core Service Groups -->
+  <!-- Group 1: StationService, VehicleService, AdminUserService -->
+  <rect x="45" y="412" width="175" height="76" rx="4" fill="#F8FAFC" stroke="#475569" stroke-width="1.1"/>
+  <text x="132" y="429" font-size="10.5" font-weight="bold" fill="#0F172A" text-anchor="middle">Station / Vehicle / AdminUser</text>
+  <text x="132" y="445" font-size="9.5" fill="#334155" text-anchor="middle">• 3站点泊位容量与空闲载具筛选</text>
+  <text x="132" y="460" font-size="9.5" fill="#334155" text-anchor="middle">• 实时遥测上报与 JSON 批量导入</text>
+  <text x="132" y="475" font-size="9.5" fill="#334155" text-anchor="middle">• 用户账户与历史订单聚合统计</text>
 
-  <!-- [可扩展] MapApiRouteImpl -->
-  <rect x="770" y="415" width="85" height="50" rx="3" fill="#FFFFFF" stroke="#6B7280" stroke-width="1"/>
-  <text x="812" y="438" font-size="10" fill="#4B5563" text-anchor="middle">"[可扩展]"</text>
-  <text x="812" y="454" font-size="9" fill="#6B7280" text-anchor="middle">MapApi</text>
+  <!-- Group 2: RecommendationService & PlanScoringService -->
+  <rect x="232" y="412" width="195" height="76" rx="4" fill="#F8FAFC" stroke="#475569" stroke-width="1.1"/>
+  <text x="329" y="429" font-size="10.5" font-weight="bold" fill="#0F172A" text-anchor="middle">Recommendation &amp; PlanScoring</text>
+  <text x="329" y="445" font-size="9.5" fill="#334155" text-anchor="middle">• 闭环航程耗电预测 (≥10% 冗余校验)</text>
+  <text x="329" y="460" font-size="9.5" fill="#334155" text-anchor="middle">• 极速(Drone)/经济(Robot)/错峰(85折)</text>
+  <text x="329" y="475" font-size="9.5" fill="#334155" text-anchor="middle">• VIP 9折叠加与 +10% 载重容积宽免</text>
 
-  <!-- OrderService -->
-  <rect x="865" y="415" width="125" height="50" rx="3" fill="#FFFFFF" stroke="#6B7280" stroke-width="1"/>
-  <text x="927" y="435" font-size="11" font-weight="bold" fill="#111827" text-anchor="middle">OrderService</text>
-  <text x="927" y="453" font-size="9.5" fill="#4B5563" text-anchor="middle">- 订单生命周期与状态机</text>
+  <!-- Group 3: OrderService -->
+  <rect x="439" y="412" width="195" height="76" rx="4" fill="#F8FAFC" stroke="#475569" stroke-width="1.1"/>
+  <text x="536" y="429" font-size="10.5" font-weight="bold" fill="#0F172A" text-anchor="middle">OrderService</text>
+  <text x="536" y="445" font-size="9.5" fill="#334155" text-anchor="middle">• 订单全生命周期状态机与悲观锁车</text>
+  <text x="536" y="460" font-size="9.5" fill="#334155" text-anchor="middle">• 取件前改址、取消调度费($2.50/VIP免)</text>
+  <text x="536" y="475" font-size="9.5" fill="#047857" text-anchor="middle">• 中途一键补差价升级无人机 &amp; 评价</text>
 
-  <!-- UserService -->
-  <rect x="1000" y="415" width="70" height="50" rx="3" fill="#FFFFFF" stroke="#6B7280" stroke-width="1"/>
-  <text x="1035" y="435" font-size="10.5" font-weight="bold" fill="#111827" text-anchor="middle">UserService</text>
-  <text x="1035" y="453" font-size="9" fill="#4B5563" text-anchor="middle">- 注册/登录</text>
+  <!-- Group 4: TrackingService & SimulationService -->
+  <rect x="646" y="412" width="185" height="76" rx="4" fill="#F8FAFC" stroke="#475569" stroke-width="1.1"/>
+  <text x="738" y="429" font-size="10.5" font-weight="bold" fill="#0F172A" text-anchor="middle">Tracking &amp; SimulationService</text>
+  <text x="738" y="445" font-size="9.5" fill="#334155" text-anchor="middle">• 三段式按需时间插值 (虚拟 GPS)</text>
+  <text x="738" y="460" font-size="9.5" fill="#334155" text-anchor="middle">• 定时充放电推进与取消就近返航</text>
+  <text x="738" y="475" font-size="9.5" fill="#334155" text-anchor="middle">• 关键里程碑事件自动审计落库</text>
 
-  <!-- Row 2 in Services: RouteService interface & MockPaymentService -->
-  <rect x="360" y="505" width="220" height="55" rx="3" fill="#FFFFFF" stroke="#6B7280" stroke-width="1"/>
-  <text x="470" y="527" font-size="11" font-weight="bold" fill="#111827" text-anchor="middle">&lt;&lt;interface&gt;&gt; RouteService</text>
-  <text x="470" y="546" font-size="10" fill="#4B5563" text-anchor="middle">- 路径节点与距离耗时计算</text>
+  <!-- Group 5: AiDeliveryService & GeminiDeliveryClient -->
+  <rect x="843" y="412" width="165" height="76" rx="4" fill="#F5F3FF" stroke="#7C3AED" stroke-width="1.2"/>
+  <text x="925" y="429" font-size="10.5" font-weight="bold" fill="#5B21B6" text-anchor="middle">AiDeliveryService</text>
+  <text x="925" y="445" font-size="9.5" fill="#334155" text-anchor="middle">• DRAFT/QUOTE/TRACK/HELP 路由</text>
+  <text x="925" y="460" font-size="9.5" fill="#334155" text-anchor="middle">• Gemini JSON Schema 意图提取</text>
+  <text x="925" y="475" font-size="9.5" fill="#334155" text-anchor="middle">• 真实后端报价/查单防幻觉校验</text>
 
-  <rect x="740" y="505" width="220" height="55" rx="3" fill="#FFFFFF" stroke="#6B7280" stroke-width="1"/>
-  <text x="850" y="525" font-size="11" font-weight="bold" fill="#111827" text-anchor="middle">MockPaymentService</text>
-  <text x="850" y="540" font-size="9.5" fill="#4B5563" text-anchor="middle">- 模拟扣款与流水生成</text>
-  <text x="850" y="552" font-size="9.5" fill="#4B5563" text-anchor="middle">- @Transactional原子锁车</text>
+  <!-- Group 6: UserService, VipService, PasswordResetService -->
+  <rect x="1020" y="412" width="155" height="76" rx="4" fill="#F8FAFC" stroke="#475569" stroke-width="1.1"/>
+  <text x="1097" y="429" font-size="10.5" font-weight="bold" fill="#0F172A" text-anchor="middle">User / Vip / PasswordReset</text>
+  <text x="1097" y="445" font-size="9.5" fill="#334155" text-anchor="middle">• BCrypt 注册登录与角色管理</text>
+  <text x="1097" y="460" font-size="9.5" fill="#334155" text-anchor="middle">• VIP 订阅 ($9.99/月 · $89.99/年)</text>
+  <text x="1097" y="475" font-size="9.5" fill="#334155" text-anchor="middle">• SHA-256 一次性密码重置链接</text>
 
-  <!-- Controllers down to Services arrows -->
-  <line x1="145" y1="339" x2="145" y2="415" stroke="#1E3A8A" stroke-width="1.2" marker-end="url(#arrow)"/>
-  <line x1="345" y1="339" x2="345" y2="415" stroke="#1E3A8A" stroke-width="1.2" marker-end="url(#arrow)"/>
-  <line x1="545" y1="339" x2="650" y2="415" stroke="#1E3A8A" stroke-width="1.2" marker-end="url(#arrow)"/>
-  <line x1="735" y1="339" x2="900" y2="415" stroke="#1E3A8A" stroke-width="1.2" marker-end="url(#arrow)"/>
-  <line x1="920" y1="339" x2="1025" y2="415" stroke="#1E3A8A" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <!-- Row 2: Strategy Interfaces & External Providers -->
+  <!-- RouteService Strategy -->
+  <rect x="70" y="518" width="420" height="76" rx="4" fill="#FFFBEB" stroke="#D97706" stroke-width="1.2"/>
+  <text x="280" y="536" font-size="10.5" font-weight="bold" fill="#B45309" text-anchor="middle">&lt;&lt;interface&gt;&gt; RouteService (路径规划策略模式)</text>
+  <text x="280" y="554" font-size="9.5" fill="#334155" text-anchor="middle">• OsrmRouteServiceImpl: 对接 OSRM 真实街道几何折线 (Ground Robot 沿路网行驶)</text>
+  <text x="280" y="570" font-size="9.5" fill="#334155" text-anchor="middle">• HaversineRouteServiceImpl: 球面大圆直线航程 (Drone 直线飞行 + 离线回退兜底)</text>
+  <text x="280" y="585" font-size="9" fill="#64748B" text-anchor="middle">External: OSRM Routing API / OpenStreetMap Nominatim &amp; Google Geocoding</text>
 
-  <!-- Inside Services connections -->
-  <path d="M 330 473 L 330 532 L 360 532" fill="none" stroke="#4B5563" stroke-width="1.2" marker-end="url(#arrow-gray)"/>
-  <path d="M 520 465 L 520 505" fill="none" stroke="#4B5563" stroke-width="1.2" stroke-dasharray="3"/>
-  <path d="M 812 465 L 812 485 L 580 485 L 580 520" fill="none" stroke="#4B5563" stroke-width="1.2" stroke-dasharray="3"/>
-  <path d="M 927 465 L 927 505" fill="none" stroke="#4B5563" stroke-width="1.2" marker-end="url(#arrow-gray)"/>
+  <!-- PaymentService Strategy -->
+  <rect x="515" y="518" width="305" height="76" rx="4" fill="#FDF2F8" stroke="#DB2777" stroke-width="1.2"/>
+  <text x="667" y="536" font-size="10.5" font-weight="bold" fill="#9D174D" text-anchor="middle">&lt;&lt;interface&gt;&gt; PaymentService (MockPaymentServiceImpl)</text>
+  <text x="667" y="554" font-size="9.5" fill="#334155" text-anchor="middle">• 模拟银行卡扣款、改址/升级补差价与取消退费</text>
+  <text x="667" y="570" font-size="9.5" fill="#334155" text-anchor="middle">• 尾号 0000 模拟拒付异常，触发 @Transactional 整体回滚</text>
+  <text x="667" y="585" font-size="9" fill="#64748B" text-anchor="middle">配合 VehicleRepository.findByIdForUpdate 悲观锁原子锁车</text>
 
-  <!-- 5. 数据访问层 (Spring Data JPA Repositories) -->
-  <rect x="40" y="615" width="1040" height="90" rx="4" fill="#FFFFFF" stroke="#333333" stroke-width="1.5"/>
-  <rect x="40" y="615" width="1040" height="24" rx="4" fill="#F3F4F6" stroke="#333333" stroke-width="1.5"/>
-  <text x="560" y="631" font-size="12" font-weight="bold" fill="#1F2937" text-anchor="middle">数据访问层 (Spring Data JPA Repositories)</text>
+  <!-- GeminiDeliveryClient External -->
+  <rect x="843" y="518" width="332" height="76" rx="4" fill="#F5F3FF" stroke="#7C3AED" stroke-width="1.2"/>
+  <text x="1009" y="536" font-size="10.5" font-weight="bold" fill="#5B21B6" text-anchor="middle">GeminiDeliveryClient (生成式 AI 客户端)</text>
+  <text x="1009" y="554" font-size="9.5" fill="#334155" text-anchor="middle">• Java HttpClient 直连 Google Gemini generateContent API</text>
+  <text x="1009" y="570" font-size="9.5" fill="#334155" text-anchor="middle">• 注入 delivery-knowledge.md 受信任知识库与 System Instruction</text>
+  <text x="1009" y="585" font-size="9" fill="#64748B" text-anchor="middle">内置 HTTP 503 指数退避重试与 API Key 脱敏保护</text>
 
-  <!-- 6 Repositories -->
-  <rect x="60" y="648" width="140" height="42" rx="3" fill="#FFFFFF" stroke="#6B7280" stroke-width="1"/>
-  <text x="130" y="674" font-size="11" font-weight="bold" fill="#111827" text-anchor="middle">StationRepository</text>
+  <!-- Controllers -> Services Arrows -->
+  <line x1="111" y1="339" x2="111" y2="412" stroke="#1E3A8A" stroke-width="1.3" marker-end="url(#arrow)"/>
+  <line x1="254" y1="339" x2="165" y2="412" stroke="#1E3A8A" stroke-width="1.3" marker-end="url(#arrow)"/>
+  <line x1="400" y1="339" x2="345" y2="412" stroke="#1E3A8A" stroke-width="1.3" marker-end="url(#arrow)"/>
+  <line x1="546" y1="339" x2="536" y2="412" stroke="#1E3A8A" stroke-width="1.3" marker-end="url(#arrow)"/>
+  <line x1="689" y1="339" x2="725" y2="412" stroke="#1E3A8A" stroke-width="1.3" marker-end="url(#arrow)"/>
+  <line x1="832" y1="339" x2="910" y2="412" stroke="#1E3A8A" stroke-width="1.3" marker-end="url(#arrow)"/>
+  <line x1="971" y1="339" x2="1065" y2="412" stroke="#1E3A8A" stroke-width="1.3" marker-end="url(#arrow)"/>
+  <line x1="1110" y1="339" x2="1110" y2="412" stroke="#1E3A8A" stroke-width="1.3" marker-end="url(#arrow)"/>
 
-  <rect x="230" y="648" width="140" height="42" rx="3" fill="#FFFFFF" stroke="#6B7280" stroke-width="1"/>
-  <text x="300" y="674" font-size="11" font-weight="bold" fill="#111827" text-anchor="middle">OrderRepository</text>
+  <!-- Intra-Service Arrows (Row 1 -> Row 2) -->
+  <line x1="329" y1="488" x2="280" y2="518" stroke="#4B5563" stroke-width="1.2" stroke-dasharray="3,3" marker-end="url(#arrow-gray)"/>
+  <line x1="700" y1="488" x2="390" y2="518" stroke="#4B5563" stroke-width="1.2" stroke-dasharray="3,3" marker-end="url(#arrow-gray)"/>
+  <line x1="560" y1="488" x2="640" y2="518" stroke="#4B5563" stroke-width="1.2" marker-end="url(#arrow-gray)"/>
+  <line x1="925" y1="488" x2="980" y2="518" stroke="#4B5563" stroke-width="1.2" marker-end="url(#arrow-gray)"/>
 
-  <rect x="400" y="648" width="140" height="42" rx="3" fill="#FFFFFF" stroke="#6B7280" stroke-width="1"/>
-  <text x="470" y="674" font-size="11" font-weight="bold" fill="#111827" text-anchor="middle">VehicleRepository</text>
+  <!-- ==================== 5. 数据访问层 (Spring Data JPA Repositories) ==================== -->
+  <rect x="30" y="640" width="1160" height="88" rx="6" fill="#FFFFFF" stroke="#334155" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="30" y="640" width="1160" height="24" rx="6" fill="#F1F5F9" stroke="#334155" stroke-width="1.5"/>
+  <text x="610" y="656" font-size="12.5" font-weight="bold" fill="#0F172A" text-anchor="middle">5. 数据访问层 (Spring Data JPA Repositories — 8 个 Repository 接口)</text>
 
-  <rect x="570" y="648" width="170" height="42" rx="3" fill="#FFFFFF" stroke="#6B7280" stroke-width="1"/>
-  <text x="655" y="674" font-size="11" font-weight="bold" fill="#111827" text-anchor="middle">TrackingEventRepository</text>
+  <!-- 8 Repositories -->
+  <rect x="42" y="674" width="128" height="40" rx="4" fill="#FFFFFF" stroke="#475569" stroke-width="1.1"/>
+  <text x="106" y="698" font-size="10.5" font-weight="bold" fill="#0F172A" text-anchor="middle">StationRepository</text>
 
-  <rect x="770" y="648" width="140" height="42" rx="3" fill="#FFFFFF" stroke="#6B7280" stroke-width="1"/>
-  <text x="840" y="674" font-size="11" font-weight="bold" fill="#111827" text-anchor="middle">PaymentRepository</text>
+  <rect x="180" y="674" width="132" height="40" rx="4" fill="#FFFFFF" stroke="#475569" stroke-width="1.1"/>
+  <text x="246" y="694" font-size="10.5" font-weight="bold" fill="#0F172A" text-anchor="middle">VehicleRepository</text>
+  <text x="246" y="707" font-size="8.5" fill="#64748B" text-anchor="middle">(含 PESSIMISTIC_WRITE)</text>
 
-  <rect x="935" y="648" width="130" height="42" rx="3" fill="#FFFFFF" stroke="#6B7280" stroke-width="1"/>
-  <text x="1000" y="674" font-size="11" font-weight="bold" fill="#111827" text-anchor="middle">UserRepository</text>
+  <rect x="322" y="674" width="128" height="40" rx="4" fill="#FFFFFF" stroke="#475569" stroke-width="1.1"/>
+  <text x="386" y="698" font-size="10.5" font-weight="bold" fill="#0F172A" text-anchor="middle">OrderRepository</text>
 
-  <!-- Service to Repositories lines -->
-  <line x1="135" y1="465" x2="135" y2="648" stroke="#1E3A8A" stroke-width="1.2" marker-end="url(#arrow)"/>
-  <path d="M 280 473 L 280 590 L 170 590 L 170 648" fill="none" stroke="#1E3A8A" stroke-width="1.2" marker-end="url(#arrow)"/>
-  <path d="M 380 473 L 380 590 L 470 590 L 470 648" fill="none" stroke="#1E3A8A" stroke-width="1.2" marker-end="url(#arrow)"/>
-  <path d="M 685 473 L 685 648" fill="none" stroke="#1E3A8A" stroke-width="1.2" marker-end="url(#arrow)"/>
-  <path d="M 910 465 L 910 590 L 330 590 L 330 648" fill="none" stroke="#1E3A8A" stroke-width="1.2" marker-end="url(#arrow)"/>
-  <path d="M 850 560 L 850 648" fill="none" stroke="#1E3A8A" stroke-width="1.2" marker-end="url(#arrow)"/>
-  <path d="M 1035 465 L 1035 648" fill="none" stroke="#1E3A8A" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <rect x="460" y="674" width="132" height="40" rx="4" fill="#FFFFFF" stroke="#475569" stroke-width="1.1"/>
+  <text x="526" y="698" font-size="10.5" font-weight="bold" fill="#0F172A" text-anchor="middle">PaymentRepository</text>
 
-  <!-- 6. 持久化层 (MySQL / PostgreSQL) -->
-  <rect x="180" y="730" width="760" height="95" rx="4" fill="#FFFFFF" stroke="#333333" stroke-width="1.5"/>
-  <rect x="180" y="730" width="760" height="24" rx="4" fill="#F3F4F6" stroke="#333333" stroke-width="1.5"/>
-  <text x="560" y="746" font-size="12" font-weight="bold" fill="#1F2937" text-anchor="middle">持久化层 (MySQL / PostgreSQL)</text>
+  <rect x="602" y="674" width="144" height="40" rx="4" fill="#FFFFFF" stroke="#475569" stroke-width="1.1"/>
+  <text x="674" y="698" font-size="10.5" font-weight="bold" fill="#0F172A" text-anchor="middle">OrderReviewRepository</text>
 
-  <!-- 6 DB Cylinders -->
-  <!-- stations: center x = 230 -->
-  <g transform="translate(195, 765)">
-    <rect x="0" y="4" width="75" height="34" rx="3" fill="#F9FAFB" stroke="#6B7280" stroke-width="1"/>
-    <ellipse cx="37.5" cy="4" rx="37.5" ry="6" fill="#E5E7EB" stroke="#6B7280" stroke-width="1"/>
-    <ellipse cx="37.5" cy="38" rx="37.5" ry="6" fill="#F9FAFB" stroke="#6B7280" stroke-width="1"/>
-    <text x="37.5" y="24" font-size="11" font-weight="bold" fill="#1F2937" text-anchor="middle">stations</text>
+  <rect x="756" y="674" width="152" height="40" rx="4" fill="#FFFFFF" stroke="#475569" stroke-width="1.1"/>
+  <text x="832" y="698" font-size="10.5" font-weight="bold" fill="#0F172A" text-anchor="middle">TrackingEventRepository</text>
+
+  <rect x="918" y="674" width="118" height="40" rx="4" fill="#FFFFFF" stroke="#475569" stroke-width="1.1"/>
+  <text x="977" y="698" font-size="10.5" font-weight="bold" fill="#0F172A" text-anchor="middle">UserRepository</text>
+
+  <rect x="1046" y="674" width="132" height="40" rx="4" fill="#FFFFFF" stroke="#475569" stroke-width="1.1"/>
+  <text x="1112" y="693" font-size="9.5" font-weight="bold" fill="#0F172A" text-anchor="middle">PasswordResetToken</text>
+  <text x="1112" y="706" font-size="9.5" font-weight="bold" fill="#0F172A" text-anchor="middle">Repository</text>
+
+  <!-- Services -> Repositories Connector Bus -->
+  <line x1="610" y1="610" x2="610" y2="640" stroke="#1E3A8A" stroke-width="1.6" marker-end="url(#arrow)"/>
+
+  <!-- ==================== 6. 持久化层 (PostgreSQL / H2) ==================== -->
+  <rect x="30" y="760" width="1160" height="175" rx="6" fill="#FFFFFF" stroke="#334155" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="30" y="760" width="1160" height="26" rx="6" fill="#F1F5F9" stroke="#334155" stroke-width="1.5"/>
+  <text x="610" y="777" font-size="12.5" font-weight="bold" fill="#0F172A" text-anchor="middle">6. 关系型数据库持久化层 (AWS RDS PostgreSQL / 本地 H2 PostgreSQL 兼容模式 — 8 张核心业务表)</text>
+
+  <!-- 8 DB Cylinders aligned directly under the 8 Repositories -->
+  <!-- 1. stations (x center = 106) -->
+  <g transform="translate(56, 810)">
+    <rect x="0" y="6" width="100" height="44" rx="4" fill="#ECFDF5" stroke="#059669" stroke-width="1.2"/>
+    <ellipse cx="50" cy="6" rx="50" ry="7" fill="#A7F3D0" stroke="#059669" stroke-width="1.2"/>
+    <ellipse cx="50" cy="50" rx="50" ry="7" fill="#ECFDF5" stroke="#059669" stroke-width="1.2"/>
+    <text x="50" y="32" font-size="11" font-weight="bold" fill="#065F46" text-anchor="middle">stations</text>
   </g>
 
-  <!-- orders: center x = 350 -->
-  <g transform="translate(315, 765)">
-    <rect x="0" y="4" width="75" height="34" rx="3" fill="#F9FAFB" stroke="#6B7280" stroke-width="1"/>
-    <ellipse cx="37.5" cy="4" rx="37.5" ry="6" fill="#E5E7EB" stroke="#6B7280" stroke-width="1"/>
-    <ellipse cx="37.5" cy="38" rx="37.5" ry="6" fill="#F9FAFB" stroke="#6B7280" stroke-width="1"/>
-    <text x="37.5" y="24" font-size="11" font-weight="bold" fill="#1F2937" text-anchor="middle">orders</text>
+  <!-- 2. vehicles (x center = 246) -->
+  <g transform="translate(196, 810)">
+    <rect x="0" y="6" width="100" height="44" rx="4" fill="#FEF3C7" stroke="#D97706" stroke-width="1.2"/>
+    <ellipse cx="50" cy="6" rx="50" ry="7" fill="#FDE68A" stroke="#D97706" stroke-width="1.2"/>
+    <ellipse cx="50" cy="50" rx="50" ry="7" fill="#FEF3C7" stroke="#D97706" stroke-width="1.2"/>
+    <text x="50" y="32" font-size="11" font-weight="bold" fill="#92400E" text-anchor="middle">vehicles</text>
   </g>
 
-  <!-- vehicles: center x = 470 -->
-  <g transform="translate(435, 765)">
-    <rect x="0" y="4" width="75" height="34" rx="3" fill="#F9FAFB" stroke="#6B7280" stroke-width="1"/>
-    <ellipse cx="37.5" cy="4" rx="37.5" ry="6" fill="#E5E7EB" stroke="#6B7280" stroke-width="1"/>
-    <ellipse cx="37.5" cy="38" rx="37.5" ry="6" fill="#F9FAFB" stroke="#6B7280" stroke-width="1"/>
-    <text x="37.5" y="24" font-size="11" font-weight="bold" fill="#1F2937" text-anchor="middle">vehicles</text>
+  <!-- 3. orders (x center = 386) -->
+  <g transform="translate(336, 810)">
+    <rect x="0" y="6" width="100" height="44" rx="4" fill="#F5F3FF" stroke="#7C3AED" stroke-width="1.2"/>
+    <ellipse cx="50" cy="6" rx="50" ry="7" fill="#DDD6FE" stroke="#7C3AED" stroke-width="1.2"/>
+    <ellipse cx="50" cy="50" rx="50" ry="7" fill="#F5F3FF" stroke="#7C3AED" stroke-width="1.2"/>
+    <text x="50" y="32" font-size="11" font-weight="bold" fill="#5B21B6" text-anchor="middle">orders</text>
   </g>
 
-  <!-- tracking_events: center x = 600 -->
-  <g transform="translate(545, 765)">
-    <rect x="0" y="4" width="110" height="34" rx="3" fill="#F9FAFB" stroke="#6B7280" stroke-width="1"/>
-    <ellipse cx="55" cy="4" rx="55" ry="6" fill="#E5E7EB" stroke="#6B7280" stroke-width="1"/>
-    <ellipse cx="55" cy="38" rx="55" ry="6" fill="#F9FAFB" stroke="#6B7280" stroke-width="1"/>
-    <text x="55" y="24" font-size="10.5" font-weight="bold" fill="#1F2937" text-anchor="middle">tracking_events</text>
+  <!-- 4. payments (x center = 526) -->
+  <g transform="translate(476, 810)">
+    <rect x="0" y="6" width="100" height="44" rx="4" fill="#FDF2F8" stroke="#DB2777" stroke-width="1.2"/>
+    <ellipse cx="50" cy="6" rx="50" ry="7" fill="#FBCFE8" stroke="#DB2777" stroke-width="1.2"/>
+    <ellipse cx="50" cy="50" rx="50" ry="7" fill="#FDF2F8" stroke="#DB2777" stroke-width="1.2"/>
+    <text x="50" y="32" font-size="11" font-weight="bold" fill="#9D174D" text-anchor="middle">payments</text>
   </g>
 
-  <!-- payments: center x = 730 -->
-  <g transform="translate(695, 765)">
-    <rect x="0" y="4" width="85" height="34" rx="3" fill="#F9FAFB" stroke="#6B7280" stroke-width="1"/>
-    <ellipse cx="42.5" cy="4" rx="42.5" ry="6" fill="#E5E7EB" stroke="#6B7280" stroke-width="1"/>
-    <ellipse cx="42.5" cy="38" rx="42.5" ry="6" fill="#F9FAFB" stroke="#6B7280" stroke-width="1"/>
-    <text x="42.5" y="24" font-size="11" font-weight="bold" fill="#1F2937" text-anchor="middle">payments</text>
+  <!-- 5. order_reviews (x center = 674) -->
+  <g transform="translate(619, 810)">
+    <rect x="0" y="6" width="110" height="44" rx="4" fill="#FFF1F2" stroke="#E11D48" stroke-width="1.2"/>
+    <ellipse cx="55" cy="6" rx="55" ry="7" fill="#FECDD3" stroke="#E11D48" stroke-width="1.2"/>
+    <ellipse cx="55" cy="50" rx="55" ry="7" fill="#FFF1F2" stroke="#E11D48" stroke-width="1.2"/>
+    <text x="55" y="32" font-size="10.5" font-weight="bold" fill="#9F1239" text-anchor="middle">order_reviews</text>
   </g>
 
-  <!-- users: center x = 850 -->
-  <g transform="translate(825, 765)">
-    <rect x="0" y="4" width="75" height="34" rx="3" fill="#F9FAFB" stroke="#6B7280" stroke-width="1"/>
-    <ellipse cx="37.5" cy="4" rx="37.5" ry="6" fill="#E5E7EB" stroke="#6B7280" stroke-width="1"/>
-    <ellipse cx="37.5" cy="38" rx="37.5" ry="6" fill="#F9FAFB" stroke="#6B7280" stroke-width="1"/>
-    <text x="37.5" y="24" font-size="11" font-weight="bold" fill="#1F2937" text-anchor="middle">users</text>
+  <!-- 6. tracking_events (x center = 832) -->
+  <g transform="translate(772, 810)">
+    <rect x="0" y="6" width="120" height="44" rx="4" fill="#EEF2FF" stroke="#4F46E5" stroke-width="1.2"/>
+    <ellipse cx="60" cy="6" rx="60" ry="7" fill="#C7D2FE" stroke="#4F46E5" stroke-width="1.2"/>
+    <ellipse cx="60" cy="50" rx="60" ry="7" fill="#EEF2FF" stroke="#4F46E5" stroke-width="1.2"/>
+    <text x="60" y="32" font-size="10.5" font-weight="bold" fill="#3730A3" text-anchor="middle">tracking_events</text>
   </g>
 
-  <!-- Repo down to DB arrows (clean vertical lines) -->
-  <line x1="130" y1="690" x2="232" y2="765" stroke="#1E3A8A" stroke-width="1.2" marker-end="url(#arrow)"/>
-  <line x1="300" y1="690" x2="352" y2="765" stroke="#1E3A8A" stroke-width="1.2" marker-end="url(#arrow)"/>
-  <line x1="470" y1="690" x2="472" y2="765" stroke="#1E3A8A" stroke-width="1.2" marker-end="url(#arrow)"/>
-  <line x1="655" y1="690" x2="600" y2="765" stroke="#1E3A8A" stroke-width="1.2" marker-end="url(#arrow)"/>
-  <line x1="840" y1="690" x2="737" y2="765" stroke="#1E3A8A" stroke-width="1.2" marker-end="url(#arrow)"/>
-  <line x1="1000" y1="690" x2="862" y2="765" stroke="#1E3A8A" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <!-- 7. users (x center = 977) -->
+  <g transform="translate(927, 810)">
+    <rect x="0" y="6" width="100" height="44" rx="4" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.2"/>
+    <ellipse cx="50" cy="6" rx="50" ry="7" fill="#BFDBFE" stroke="#2563EB" stroke-width="1.2"/>
+    <ellipse cx="50" cy="50" rx="50" ry="7" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.2"/>
+    <text x="50" y="32" font-size="11" font-weight="bold" fill="#1E40AF" text-anchor="middle">users</text>
+  </g>
+
+  <!-- 8. password_reset_tokens (x center = 1112) -->
+  <g transform="translate(1047, 810)">
+    <rect x="0" y="6" width="130" height="44" rx="4" fill="#ECFEFF" stroke="#0891B2" stroke-width="1.2"/>
+    <ellipse cx="65" cy="6" rx="65" ry="7" fill="#A5F3FC" stroke="#0891B2" stroke-width="1.2"/>
+    <ellipse cx="65" cy="50" rx="65" ry="7" fill="#ECFEFF" stroke="#0891B2" stroke-width="1.2"/>
+    <text x="65" y="32" font-size="9.5" font-weight="bold" fill="#155E75" text-anchor="middle">password_reset_tokens</text>
+  </g>
+
+  <text x="610" y="902" font-size="11" fill="#475569" text-anchor="middle">启动自动执行 schema.sql + data.sql 初始化 3 大旧金山站点与 75 辆无人机/机器人，支持增量无损迁移 (IF NOT EXISTS)</text>
+
+  <!-- Repositories -> DB Cylinders vertical arrows -->
+  <line x1="106" y1="714" x2="106" y2="803" stroke="#1E3A8A" stroke-width="1.3" marker-end="url(#arrow)"/>
+  <line x1="246" y1="714" x2="246" y2="803" stroke="#1E3A8A" stroke-width="1.3" marker-end="url(#arrow)"/>
+  <line x1="386" y1="714" x2="386" y2="803" stroke="#1E3A8A" stroke-width="1.3" marker-end="url(#arrow)"/>
+  <line x1="526" y1="714" x2="526" y2="803" stroke="#1E3A8A" stroke-width="1.3" marker-end="url(#arrow)"/>
+  <line x1="674" y1="714" x2="674" y2="803" stroke="#1E3A8A" stroke-width="1.3" marker-end="url(#arrow)"/>
+  <line x1="832" y1="714" x2="832" y2="803" stroke="#1E3A8A" stroke-width="1.3" marker-end="url(#arrow)"/>
+  <line x1="977" y1="714" x2="977" y2="803" stroke="#1E3A8A" stroke-width="1.3" marker-end="url(#arrow)"/>
+  <line x1="1112" y1="714" x2="1112" y2="803" stroke="#1E3A8A" stroke-width="1.3" marker-end="url(#arrow)"/>
 </svg>
