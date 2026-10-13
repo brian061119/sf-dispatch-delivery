@@ -42,3 +42,8 @@ e2e/screenshots/
 # Postman app local workspace files (per-user, not project content)
 postman/.postman/
 postman/postman/
+
+# Defense deck: regenerable artifacts (build.py rebuilds both).
+# Source images and the .pptx itself ARE committed; only derived output is ignored.
+/presentation/*/preview/
+/presentation/*/assets/_built/
